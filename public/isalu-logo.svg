@@ -1,0 +1,24 @@
+<svg viewBox="0 0 340 120" width="340" height="120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="isaluSphereGrad" cx="36%" cy="30%" r="68%" fx="30%" fy="24%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="16%" stop-color="#A8EAFF" />
+      <stop offset="42%" stop-color="#00A3FF" />
+      <stop offset="76%" stop-color="#007ACC" />
+      <stop offset="100%" stop-color="#005B9C" />
+    </radialGradient>
+  </defs>
+
+  <!-- 4 Spheres Cross Emblem -->
+  <g transform="translate(10, 10)">
+    <circle cx="50" cy="24" r="17" fill="url(#isaluSphereGrad)" />
+    <circle cx="50" cy="76" r="17" fill="url(#isaluSphereGrad)" />
+    <circle cx="24" cy="50" r="17" fill="url(#isaluSphereGrad)" />
+    <circle cx="76" cy="50" r="17" fill="url(#isaluSphereGrad)" />
+  </g>
+
+  <!-- Typography -->
+  <text x="120" y="52" fill="#0082CD" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="36" letter-spacing="1">ISALU</text>
+  <text x="120" y="84" fill="#0082CD" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="28" letter-spacing="2">HOSPITALS</text>
+  <text x="120" y="108" fill="#0082CD" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="18" letter-spacing="3">RC502112</text>
+</svg>

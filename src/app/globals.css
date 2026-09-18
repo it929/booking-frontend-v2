@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --isalu-blue: #0082cd;
+  --isalu-blue-dark: #006bac;
+  --isalu-blue-light: #38bdf8;
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Official Isalu Hospitals Brand Color System */
+  --color-isalu-50: #f0f9ff;
+  --color-isalu-100: #e0f2fe;
+  --color-isalu-200: #bae6fd;
+  --color-isalu-300: #7dd3fc;
+  --color-isalu-400: #38bdf8;
+  --color-isalu-500: #0ea5e9;
+  --color-isalu-600: #0082cd; /* Primary Isalu Blue */
+  --color-isalu-700: #006bac;
+  --color-isalu-800: #005488;
+  --color-isalu-900: #053b61;
+  --color-isalu-950: #02243d;
+
+  /* Harmonize teal utility tokens to Isalu Brand Blue */
+  --color-teal-50: #f0f9ff;
+  --color-teal-100: #e0f2fe;
+  --color-teal-200: #bae6fd;
+  --color-teal-300: #7dd3fc;
+  --color-teal-400: #38bdf8;
+  --color-teal-500: #0ea5e9;
+  --color-teal-600: #0082cd;
+  --color-teal-700: #006bac;
+  --color-teal-800: #005488;
+  --color-teal-900: #053b61;
+  --color-teal-950: #02243d;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Hide entire page tree */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Reveal only the ticket/receipt and its contents */
+  #printable-ticket,
+  #printable-ticket *,
+  #printable-receipt,
+  #printable-receipt *,
+  #printable-reschedule-ticket,
+  #printable-reschedule-ticket * {
+    visibility: visible !important;
+  }
+
+  /* Reposition cleanly to top of printed page with compact ticket sizing */
+  #printable-ticket,
+  #printable-receipt,
+  #printable-reschedule-ticket {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 430px !important;
+    padding: 18px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 16px !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    page-break-inside: avoid !important;
+    zoom: 0.88;
+  }
+
+  /* Omit buttons and controls */
+  button,
+  .no-print,
+  #printable-ticket button,
+  #printable-receipt button,
+  #printable-reschedule-ticket button {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Preserve high-fidelity colors and badge styling */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    margin: 12mm;
+    size: auto;
+  }
+}
