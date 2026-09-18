@@ -63,6 +63,18 @@ export function clearAuthSession(): void {
   } catch {}
 }
 
+export class ApiError extends Error {
+  status: number;
+  data: any;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
@@ -87,7 +99,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (!res.ok) {
       const errorMsg = data?.detail || data?.error || data?.message || `HTTP ${res.status} Error`;
-      throw new Error(errorMsg);
+      throw new ApiError(errorMsg, res.status, data);
     }
 
     return data as T;

@@ -207,7 +207,7 @@ export default function NewStaffModal({
                 <input
                   type="email"
                   required
-                  placeholder="e.g. chioma.adebayo@isalu.ng"
+                  placeholder="e.g. demo@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none text-xs font-medium text-slate-900 placeholder:text-slate-400 transition-all shadow-2xs"
@@ -314,8 +314,8 @@ export default function NewStaffModal({
                 {DESK_LABELS[activeRoleObj.primary_desk || ''] ||
                   (activeRoleObj.primary_desk
                     ? activeRoleObj.primary_desk.charAt(0).toUpperCase() +
-                      activeRoleObj.primary_desk.slice(1) +
-                      ' Desk'
+                    activeRoleObj.primary_desk.slice(1) +
+                    ' Desk'
                     : 'General Workstation')}
               </p>
               {activeRoleObj.description && (

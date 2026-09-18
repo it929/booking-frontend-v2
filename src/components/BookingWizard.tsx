@@ -2,11 +2,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Department, 
-  Doctor, 
-  HmoCompany, 
-  AvailabilityResult, 
+import {
+  Department,
+  Doctor,
+  HmoCompany,
+  AvailabilityResult,
   Booking,
   ClinicScheduleItem,
   getDoctorInitials,
@@ -14,25 +14,26 @@ import {
   getDoctorBillingCategory,
   getDoctorShiftTime
 } from '@/lib/types';
-import { 
-  getDepartments, 
-  getDoctors, 
-  getHmoCompanies, 
-  checkDoctorAvailability, 
-  createBooking 
+import {
+  getDepartments,
+  getDoctors,
+  getHmoCompanies,
+  checkDoctorAvailability,
+  createBooking,
+  ApiError
 } from '@/lib/api';
-import { 
-  Calendar, 
-  Clock, 
-  User, 
-  Stethoscope, 
-  CreditCard, 
-  ShieldCheck, 
-  CheckCircle2, 
-  ArrowRight, 
-  ArrowLeft, 
-  AlertCircle, 
-  Building2, 
+import {
+  Calendar,
+  Clock,
+  User,
+  Stethoscope,
+  CreditCard,
+  ShieldCheck,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
+  AlertCircle,
+  Building2,
   Printer,
   Sparkles,
   Phone,
@@ -82,6 +83,9 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
 
   // Smoothly scroll to the top of the wizard whenever step transitions occur
   useEffect(() => {
+    setErrorMessage(null);
+    setDuplicateRef(null);
+
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
@@ -131,6 +135,7 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [duplicateRef, setDuplicateRef] = useState<string | null>(null);
 
   // Load departments, doctors, and HMO companies
   const loadData = async (silent = false) => {
@@ -435,7 +440,12 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
       loadData(true);
       setStep(5); // Step 5: Official Ticket Voucher
     } catch (err: unknown) {
-      if (err instanceof Error) {
+      if (err instanceof ApiError) {
+        setErrorMessage(err.message);
+        if (err.status === 409 && err.data?.existing_reference) {
+          setDuplicateRef(err.data.existing_reference);
+        }
+      } else if (err instanceof Error) {
         setErrorMessage(err.message);
       } else {
         setErrorMessage('Failed to create booking. Please try again.');
@@ -486,19 +496,29 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
   return (
     <div
       ref={wizardRef}
-      className={`bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden transition-all duration-300 w-full mx-auto scroll-mt-24 ${
-        step === 4 ? 'max-w-2xl' : step === 5 ? 'max-w-xl' : 'max-w-4xl'
-      }`}
+      className={`bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden transition-all duration-300 w-full mx-auto scroll-mt-24 ${step === 4 ? 'max-w-2xl' : step === 5 ? 'max-w-xl' : 'max-w-4xl'
+        }`}
     >
 
       {/* Main Content Area */}
       <div className="p-4 sm:p-6 lg:p-8">
         {errorMessage && (
-          <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-start gap-3">
-            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-rose-600 mt-0.5" />
-            <div>
-              <p className="font-bold">Notice</p>
-              <p className="text-xs text-rose-700">{errorMessage}</p>
+          <div className="mb-5 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-bold text-rose-900">Appointment Notice</p>
+              <p className="text-xs sm:text-sm text-rose-700 mt-1 leading-relaxed">{errorMessage}</p>
+              {duplicateRef && (
+                <div className="mt-3 pt-3 border-t border-rose-200/80 flex flex-wrap items-center gap-2.5">
+                  <a
+                    href={`/check-status?ref=${encodeURIComponent(duplicateRef)}`}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors shadow-sm"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    View Existing Appointment Voucher ({duplicateRef})
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -734,11 +754,10 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
                 <button
                   type="button"
                   onClick={() => setBillingFilter((prev) => (prev === 'HMO' ? 'BOTH' : 'HMO'))}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                    billingFilter === 'HMO'
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${billingFilter === 'HMO'
                       ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-2 ring-blue-500/20'
                       : 'bg-transparent text-slate-700 hover:bg-slate-100/80'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <ShieldCheck className={`w-4 h-4 ${billingFilter === 'HMO' ? 'text-white' : 'text-blue-600'}`} />
@@ -748,11 +767,10 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
                     )}
                   </div>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                      billingFilter === 'HMO'
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${billingFilter === 'HMO'
                         ? 'bg-blue-700/80 text-white'
                         : 'bg-blue-50 text-blue-700 border border-blue-200'
-                    }`}
+                      }`}
                   >
                     {hmoDoctorsCount} Doctors
                   </span>
@@ -761,11 +779,10 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
                 <button
                   type="button"
                   onClick={() => setBillingFilter((prev) => (prev === 'PRIVATE' ? 'BOTH' : 'PRIVATE'))}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                    billingFilter === 'PRIVATE'
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${billingFilter === 'PRIVATE'
                       ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/25 ring-2 ring-emerald-500/20'
                       : 'bg-transparent text-slate-700 hover:bg-slate-100/80'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <CreditCard className={`w-4 h-4 ${billingFilter === 'PRIVATE' ? 'text-white' : 'text-emerald-600'}`} />
@@ -775,11 +792,10 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
                     )}
                   </div>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                      billingFilter === 'PRIVATE'
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${billingFilter === 'PRIVATE'
                         ? 'bg-emerald-700/80 text-white'
                         : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}
+                      }`}
                   >
                     {privateDoctorsCount} Doctors
                   </span>
@@ -887,21 +903,19 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
 
                         {/* Next Clinic Schedule & Live Booking Quota */}
                         {doc.next_schedule && (
-                          <div className={`p-3 rounded-2xl border transition-all ${
-                            doc.next_schedule.is_fully_booked
+                          <div className={`p-3 rounded-2xl border transition-all ${doc.next_schedule.is_fully_booked
                               ? 'bg-rose-50/70 border-rose-200 text-rose-950'
                               : 'bg-teal-50/60 border-teal-200/80 text-teal-950'
-                          }`}>
+                            }`}>
                             <div className="flex items-center justify-between text-xs font-bold mb-1.5">
                               <span className="flex items-center gap-1.5 text-slate-700">
                                 <Calendar className={`w-3.5 h-3.5 ${doc.next_schedule.is_fully_booked ? 'text-rose-600' : 'text-teal-600'}`} />
                                 <span>Next Clinic Date:</span>
                               </span>
-                              <span className={`px-2 py-0.5 rounded-md text-xs font-black ${
-                                doc.next_schedule.is_fully_booked
+                              <span className={`px-2 py-0.5 rounded-md text-xs font-black ${doc.next_schedule.is_fully_booked
                                   ? 'bg-rose-100 text-rose-900 border border-rose-200'
                                   : 'bg-white border border-teal-200 text-teal-900 shadow-sm'
-                              }`}>
+                                }`}>
                                 {doc.next_schedule.formatted_date}
                               </span>
                             </div>
@@ -1159,11 +1173,10 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
                     type="button"
                     disabled={!selectedDate || !selectedSlot || !availability?.is_available || availability?.is_fully_booked || availability?.is_booking_closed || availability?.remaining_slots <= 0}
                     onClick={() => setStep(4)}
-                    className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                      selectedDate && selectedSlot && availability?.is_available && !availability?.is_fully_booked && !availability?.is_booking_closed && availability?.remaining_slots > 0
+                    className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${selectedDate && selectedSlot && availability?.is_available && !availability?.is_fully_booked && !availability?.is_booking_closed && availability?.remaining_slots > 0
                         ? 'bg-teal-600 text-white hover:bg-teal-700 shadow-md shadow-teal-600/20'
                         : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    }`}
+                      }`}
                   >
                     <span>Proceed to Patient Details</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -1237,7 +1250,7 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
                 <label className="text-xs font-bold text-slate-700">Email Address (Optional)</label>
                 <input
                   type="email"
-                  placeholder="patient@example.com"
+                  placeholder="patient@gmail.com"
                   value={patientEmail}
                   onChange={(e) => setPatientEmail(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
@@ -1256,13 +1269,12 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
                         disabled={!docBilling.hasPrivate}
                         onClick={() => setPaymentType('Private Self-Pay')}
                         title={!docBilling.hasPrivate ? 'Doctor does not accept Private Self-Pay patients' : undefined}
-                        className={`py-2.5 px-2.5 sm:px-3 rounded-2xl text-[11px] sm:text-xs font-bold border transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                          !docBilling.hasPrivate
+                        className={`py-2.5 px-2.5 sm:px-3 rounded-2xl text-[11px] sm:text-xs font-bold border transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${!docBilling.hasPrivate
                             ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
                             : paymentType === 'Private Self-Pay'
-                            ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
-                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
+                              ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
                       >
                         <CreditCard className="w-3.5 h-3.5 shrink-0" /> Private Self-Pay
                       </button>
@@ -1271,13 +1283,12 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
                         disabled={!docBilling.hasHmo}
                         onClick={() => setPaymentType('HMO Insurance')}
                         title={!docBilling.hasHmo ? 'Doctor does not accept HMO Insurance patients' : undefined}
-                        className={`py-2.5 px-2.5 sm:px-3 rounded-2xl text-[11px] sm:text-xs font-bold border transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                          !docBilling.hasHmo
+                        className={`py-2.5 px-2.5 sm:px-3 rounded-2xl text-[11px] sm:text-xs font-bold border transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${!docBilling.hasHmo
                             ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
                             : paymentType === 'HMO Insurance'
-                            ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
-                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
+                              ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
                       >
                         <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> HMO Insurance
                       </button>
