@@ -7,7 +7,6 @@ import {
   UserCheck,
   ShieldCheck,
   CreditCard,
-  Tv,
   BarChart3,
   Settings,
   Users,
@@ -32,9 +31,9 @@ import {
 import IsaluLogo from '@/components/IsaluLogo';
 
 export type SubmoduleId =
+  | 'today-clinics'
   | 'triage-queue'
   | 'triage-completed'
-  | 'triage-tv'
   | 'triage-walkin'
   | 'hmo-approvals'
   | 'hmo-partners'
@@ -75,6 +74,7 @@ interface DashboardSidebarProps {
   onToggleCollapse: () => void;
   onLogout: () => void;
   badges: {
+    todayCount?: number;
     pendingHmo?: number;
     waitingTriage?: number;
     pendingBilling?: number;
@@ -116,11 +116,11 @@ export default function DashboardSidebar({
       title: 'Triage & Queue',
       icon: UserCheck,
       allowedRoles: ['helpdesk', 'doctor', 'monitor', 'reception', 'clinic'],
-      badge: badges.waitingTriage,
+      badge: (badges.todayCount ?? 0) + (badges.waitingTriage ?? 0),
       submodules: [
+        { id: 'today-clinics', title: "Today's Clinic Roster", icon: Calendar, badge: badges.todayCount },
         { id: 'triage-queue', title: 'Arrivals & Check-in', icon: UserCheck, badge: badges.waitingTriage },
         { id: 'triage-completed', title: 'Completed Bookings', icon: CheckCircle2, badge: badges.completedCount },
-        { id: 'triage-tv', title: 'Waiting Room TV Board', icon: Tv },
         { id: 'triage-walkin', title: 'Walk-in Intake Form', icon: PlusCircle, allowedRoles: ['helpdesk', 'doctor', 'reception', 'admin'] },
       ],
     },

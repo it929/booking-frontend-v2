@@ -55,12 +55,12 @@ import NewHmoModal from '@/components/dashboard/NewHmoModal';
 import EditHmoModal from '@/components/dashboard/EditHmoModal';
 import RescheduleModal from '@/components/RescheduleModal';
 import IsaluLogo from '@/components/IsaluLogo';
+import TodayClinicModule from '@/components/dashboard/TodayClinicModule';
 import { printElement } from '@/lib/printUtils';
 import {
   UserCheck,
   ShieldCheck,
   CreditCard,
-  Tv,
   BarChart3,
   Settings,
   Users,
@@ -266,7 +266,6 @@ export default function DashboardPage() {
   const [hmoSearch, setHmoSearch] = useState('');
   const [hmoApprovalStatusFilter, setHmoApprovalStatusFilter] = useState<'All' | 'Pending' | 'Approved'>('All');
   const [financeStatusFilter, setFinanceStatusFilter] = useState<'All' | 'Pending' | 'Cleared'>('All');
-  const [tvFullScreen, setTvFullScreen] = useState(false);
 
   // Auto-dismiss success alert after 30 seconds
   useEffect(() => {
@@ -296,8 +295,7 @@ export default function DashboardPage() {
       } else if (assigned.includes('executive-intelligence') && !assigned.includes('clinical-triage')) {
         setActiveSubmodule('analytics-kpis');
       } else if (assigned.includes('clinical-triage')) {
-        const isMon = (user.role || '').toLowerCase().includes('monitor') || (user.desk || '').toLowerCase().includes('monitor');
-        setActiveSubmodule(isMon ? 'triage-tv' : 'triage-queue');
+        setActiveSubmodule('triage-queue');
       } else if (assigned.includes('finance-billing')) {
         setActiveSubmodule('finance-invoices');
       } else {
@@ -317,12 +315,18 @@ export default function DashboardPage() {
         setActiveSubmodule('finance-invoices');
       } else if (roleLower.includes('hmo') || deskLower.includes('hmo')) {
         setActiveSubmodule('hmo-approvals');
-      } else if (roleLower.includes('monitor') || deskLower.includes('monitor')) {
-        setActiveSubmodule('triage-tv');
       } else if (roleLower.includes('analytics') || deskLower.includes('analytics')) {
         setActiveSubmodule('analytics-kpis');
       } else {
         setActiveSubmodule('triage-queue');
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const sub = params.get('submodule') || params.get('tab');
+      if (sub === 'today-clinics' || sub === 'today-clinic' || sub === 'today') {
+        setActiveSubmodule('today-clinics');
       }
     }
 
@@ -349,9 +353,9 @@ export default function DashboardPage() {
 
     // Submodule to Module map
     const submoduleModuleMap: Record<string, string> = {
+      'today-clinics': 'clinical-triage',
       'triage-queue': 'clinical-triage',
       'triage-completed': 'clinical-triage',
-      'triage-tv': 'clinical-triage',
       'triage-walkin': 'clinical-triage',
       'hmo-approvals': 'hmo-insurance',
       'hmo-partners': 'hmo-insurance',
@@ -419,8 +423,8 @@ export default function DashboardPage() {
     }
 
     // Restrict Monitor to triage submodules
-    if (isMonitor && !activeSubmodule.startsWith('triage-')) {
-      setActiveSubmodule('triage-tv');
+    if (isMonitor && !activeSubmodule.startsWith('triage-') && activeSubmodule !== 'today-clinics') {
+      setActiveSubmodule('triage-queue');
       return;
     }
 
@@ -821,6 +825,11 @@ export default function DashboardPage() {
 
   // Dynamic Badges
   const badges = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayCount = bookings.filter((b) => {
+      const bDate = (b.appointment_date || b.date || '').slice(0, 10);
+      return bDate === todayStr;
+    }).length;
     const pendingHmo = bookings.filter(
       (b) => isHmoBooking(b) && b.hmo_status !== 'Approved'
     ).length;
@@ -831,7 +840,7 @@ export default function DashboardPage() {
         b.payment_status !== 'Paid'
     ).length;
     const completedCount = bookings.filter((b) => b.status === 'Completed').length;
-    return { pendingHmo, waitingTriage, pendingBilling, completedCount };
+    return { todayCount, pendingHmo, waitingTriage, pendingBilling, completedCount };
   }, [bookings]);
 
   // Module 4 Registry Filtering
@@ -913,7 +922,7 @@ export default function DashboardPage() {
       />
 
       {/* 2. Main Content Wrapper */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Topbar */}
         <DashboardTopbar
           currentUser={currentUser}
@@ -972,6 +981,18 @@ export default function DashboardPage() {
 
         {/* Dynamic Submodule Workspace */}
         <main className="flex-1 px-4 sm:px-8 pb-12 pt-2">
+          {/* =========================================================================
+              MODULE 1: TODAY'S CLINIC ROSTER
+          ========================================================================= */}
+          {activeSubmodule === 'today-clinics' && (
+            <TodayClinicModule
+              currentUser={currentUser}
+              departments={departments}
+              doctors={doctors}
+              onRefreshDashboard={fetchData}
+            />
+          )}
+
           {/* =========================================================================
               MODULE 1: TRIAGE & QUEUE
           ========================================================================= */}
@@ -2244,128 +2265,6 @@ export default function DashboardPage() {
                   <div className="text-right">
                     <div className="border-b border-slate-400 w-48 inline-block mb-1"></div>
                     <div>Medical Records / Clinic Lead Signature</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Submodule: Waiting Room TV Board */}
-          {activeSubmodule === 'triage-tv' && (
-            <div
-              className={`rounded-3xl bg-slate-950 text-white p-6 sm:p-10 shadow-2xl border border-slate-800 space-y-8 ${
-                tvFullScreen ? 'fixed inset-0 z-50 rounded-none overflow-y-auto' : ''
-              }`}
-            >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-5">
-                <div className="flex items-center gap-4">
-                  <IsaluLogo variant="full" theme="dark" size="lg" />
-                  <div className="hidden sm:block border-l border-slate-800 pl-4">
-                    <span className="text-xs uppercase font-bold text-teal-400 tracking-wider">
-                      Consultation Waiting Room TV
-                    </span>
-                    <h2 className="text-xl font-black text-white">Live Patient Queuing Display</h2>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="text-right hidden sm:block">
-                    <span className="text-sm font-mono font-bold text-teal-300">
-                      {new Date().toLocaleTimeString()}
-                    </span>
-                    <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5 justify-end mt-0.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> TV Feed Active
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setTvFullScreen(!tvFullScreen)}
-                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-                    title={tvFullScreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-                  >
-                    <Maximize2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Ready / Checked In */}
-                <div className="bg-slate-900/90 rounded-2xl p-6 border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-teal-400 flex items-center gap-2">
-                      <UserCheck className="w-4 h-4" /> Ready for Consultation (Checked In)
-                    </h3>
-                    <span className="text-xs font-mono font-bold bg-teal-950 text-teal-300 border border-teal-800/60 px-2 py-0.5 rounded-md">
-                      {bookings.filter((b) => b.status === 'Checked In').length} Waiting
-                    </span>
-                  </div>
-
-                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                    {bookings.filter((b) => b.status === 'Checked In').length === 0 ? (
-                      <div className="p-8 text-center text-xs text-slate-500">
-                        No patients currently waiting in triage queue.
-                      </div>
-                    ) : (
-                      bookings
-                        .filter((b) => b.status === 'Checked In')
-                        .map((b) => (
-                          <div
-                            key={b.id}
-                            className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between"
-                          >
-                            <div>
-                              <span className="text-xl font-black text-teal-300 font-mono tracking-wider">
-                                {b.reference_code}
-                              </span>
-                              <p className="text-sm font-bold text-white mt-0.5">{b.patient_name}</p>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-xs text-slate-300 font-medium block">{formatDoctorName(b.doctor_name)}</span>
-                              <span className="text-xs font-bold text-teal-400 bg-teal-950/80 px-2 py-0.5 rounded-md border border-teal-800/50 mt-1 inline-block">
-                                {b.doctor_specialty || 'General'}
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Arriving Soon */}
-                <div className="bg-slate-900/90 rounded-2xl p-6 border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                      <Clock className="w-4 h-4" /> Confirmed / Arriving Today
-                    </h3>
-                    <span className="text-xs font-mono font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">
-                      {bookings.filter((b) => b.status === 'Confirmed').length} Scheduled
-                    </span>
-                  </div>
-
-                  <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
-                    {bookings.filter((b) => b.status === 'Confirmed').length === 0 ? (
-                      <div className="p-8 text-center text-xs text-slate-500">
-                        No additional scheduled appointments today.
-                      </div>
-                    ) : (
-                      bookings
-                        .filter((b) => b.status === 'Confirmed')
-                        .slice(0, 10)
-                        .map((b) => (
-                          <div
-                            key={b.id}
-                            className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between text-xs"
-                          >
-                            <div>
-                              <span className="font-bold text-slate-300 font-mono">{b.reference_code}</span>
-                              <p className="text-slate-400 mt-0.5">{b.patient_name}</p>
-                            </div>
-                            <div className="text-right text-slate-400">
-                              <span className="font-semibold text-slate-300">{b.time || b.appointment_time}</span>
-                              <span className="text-[10px] block text-slate-500">{formatDoctorName(b.doctor_name)}</span>
-                            </div>
-                          </div>
-                        ))
-                    )}
                   </div>
                 </div>
               </div>

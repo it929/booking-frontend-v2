@@ -20,8 +20,41 @@ import {
   ArrowRight,
   ShieldCheck,
   CreditCard,
-  Printer
+  Printer,
+  Mail,
+  Copy,
+  Check,
+  HeartPulse,
+  Baby,
+  Eye,
+  Bone,
+  Brain,
+  Smile,
+  Activity,
+  Building2
 } from 'lucide-react';
+
+function getClinicIcon(nameOrIcon?: string) {
+  const lower = (nameOrIcon || '').toLowerCase();
+  if (lower.includes('cardio') || lower.includes('heart')) return <HeartPulse className="w-3.5 h-3.5 text-rose-400 shrink-0" />;
+  if (lower.includes('paed') || lower.includes('ped') || lower.includes('child') || lower.includes('baby')) return <Baby className="w-3.5 h-3.5 text-amber-400 shrink-0" />;
+  if (lower.includes('eye') || lower.includes('ophthal')) return <Eye className="w-3.5 h-3.5 text-indigo-400 shrink-0" />;
+  if (lower.includes('ortho') || lower.includes('bone')) return <Bone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />;
+  if (lower.includes('neuro') || lower.includes('brain') || lower.includes('psych')) return <Brain className="w-3.5 h-3.5 text-purple-400 shrink-0" />;
+  if (lower.includes('dent') || lower.includes('smile')) return <Smile className="w-3.5 h-3.5 text-teal-300 shrink-0" />;
+  if (lower.includes('surg')) return <Activity className="w-3.5 h-3.5 text-teal-300 shrink-0" />;
+  if (lower.includes('general') || lower.includes('family')) return <Stethoscope className="w-3.5 h-3.5 text-teal-300 shrink-0" />;
+  return <Building2 className="w-3.5 h-3.5 text-teal-300 shrink-0" />;
+}
+
+function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.969.574 1.815.88 2.791.88 3.181 0 5.767-2.586 5.767-5.766.001-3.18-2.585-5.766-5.767-5.766zm3.393 8.303c-.149.421-.736.78-1.02.83-.284.05-.62.062-1.895-.469-1.629-.678-2.678-2.339-2.759-2.449-.081-.11-.655-.873-.655-1.664 0-.791.413-1.18.561-1.341.149-.161.326-.201.435-.201.109 0 .218.001.312.006.101.005.237-.038.37.283.149.362.508 1.239.552 1.33.044.091.074.198.015.318-.059.12-.089.198-.178.301-.089.103-.187.23-.267.31-.089.088-.182.184-.078.362.103.178.461.761.99 1.232.682.608 1.258.796 1.436.885.178.089.282.078.386-.041.104-.119.444-.517.563-.695.118-.178.237-.149.397-.089.16.06 1.011.477 1.185.564.174.087.291.13.333.201.042.071.042.411-.107.832z" />
+      <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.176L2 22l4.982-1.309C8.423 21.536 10.147 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.182c-1.67 0-3.235-.487-4.558-1.325l-.326-.208-2.969.779.792-2.894-.225-.357A8.14 8.14 0 0 1 3.818 12c0-4.512 3.67-8.182 8.182-8.182 4.512 0 8.182 3.67 8.182 8.182 0 4.512-3.67 8.182-8.182 8.182z" />
+    </svg>
+  );
+}
 
 interface RescheduleModalProps {
   booking: Booking | null;
@@ -53,6 +86,7 @@ export default function RescheduleModal({
   const [doctor, setDoctor] = useState<Doctor | null>(booking?.doctor || null);
   const [loadingDoctor, setLoadingDoctor] = useState(false);
   const [rescheduledBooking, setRescheduledBooking] = useState<Booking | null>(null);
+  const [copiedTicket, setCopiedTicket] = useState(false);
 
   // Today string for min date (YYYY-MM-DD)
   const todayStr = new Date().toISOString().split('T')[0];
@@ -153,7 +187,106 @@ export default function RescheduleModal({
 
   const handleClose = () => {
     setRescheduledBooking(null);
+    setCopiedTicket(false);
     onClose();
+  };
+
+  // Build WhatsApp share URL
+  const getWhatsAppShareUrl = (bk: Booking) => {
+    const docName = getDoctorInitialName(doctor || bk.doctor || bk.doctor_name || booking?.doctor || booking?.doctor_name);
+    const clinicName = bk.doctor_specialty || bk.department?.name || doctor?.specialty || booking?.doctor_specialty || booking?.department?.name || 'Specialist Consultation';
+    const dateStr = bk.date || bk.appointment_date || selectedDate;
+    const timeStr = bk.time || bk.appointment_time || booking?.time || booking?.appointment_time || 'Consultation Shift';
+    const paymentLabel = (bk.payment_type || booking?.payment_type) === 'HMO Insurance' && (bk.hmo_name || booking?.hmo_name)
+      ? `HMO Insurance (${bk.hmo_name || booking?.hmo_name})`
+      : (bk.payment_type || booking?.payment_type || 'Private Self-Pay');
+
+    const message = `*ISALU HOSPITALS - RESCHEDULED CONSULTATION TICKET*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎟️ *Ticket Reference:* ${bk.reference_code}
+👤 *Patient:* ${bk.patient_name || booking?.patient_name}
+🏥 *Specialty Clinic:* ${clinicName}
+👨‍⚕️ *Consulting Specialist:* ${docName}
+📅 *Rescheduled Date:* ${dateStr}
+⏰ *Shift Window:* ${timeStr}
+💳 *Billing:* ${paymentLabel}
+${(bk.hmo_policy_code || booking?.hmo_policy_code) ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code || booking?.hmo_policy_code}\n` : ''}━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📍 *Address:* No. 46, Ijaiye Road, Ogba, Ikeja, Lagos
+ℹ️ Please arrive 15 minutes prior to clinic commencement for vital triage.
+🔗 Check/Track Slip: ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=${encodeURIComponent(bk.reference_code)}`;
+
+    return `https://wa.me/?text=${encodeURIComponent(message)}`;
+  };
+
+  // Build Email mailto URL
+  const getEmailShareUrl = (bk: Booking) => {
+    const docName = getDoctorInitialName(doctor || bk.doctor || bk.doctor_name || booking?.doctor || booking?.doctor_name);
+    const clinicName = bk.doctor_specialty || bk.department?.name || doctor?.specialty || booking?.doctor_specialty || booking?.department?.name || 'Specialist Consultation';
+    const dateStr = bk.date || bk.appointment_date || selectedDate;
+    const timeStr = bk.time || bk.appointment_time || booking?.time || booking?.appointment_time || 'Consultation Shift';
+    const paymentLabel = (bk.payment_type || booking?.payment_type) === 'HMO Insurance' && (bk.hmo_name || booking?.hmo_name)
+      ? `HMO Insurance (${bk.hmo_name || booking?.hmo_name})`
+      : (bk.payment_type || booking?.payment_type || 'Private Self-Pay');
+
+    const subject = `Isalu Hospitals Rescheduled Consultation Ticket - ${bk.reference_code}`;
+    const body = `Dear ${bk.patient_name || booking?.patient_name},
+
+Your rescheduled specialist medical appointment at Isalu Hospitals has been successfully confirmed.
+
+RESCHEDULED APPOINTMENT SUMMARY:
+• Ticket Reference: ${bk.reference_code}
+• Patient: ${bk.patient_name || booking?.patient_name}
+• Specialty Clinic: ${clinicName}
+• Consulting Specialist: ${docName}
+• Rescheduled Date: ${dateStr}
+• Shift Window: ${timeStr}
+• Billing Channel: ${paymentLabel}
+${(bk.hmo_policy_code || booking?.hmo_policy_code) ? `• HMO Policy ID: ${bk.hmo_policy_code || booking?.hmo_policy_code}\n` : ''}
+HOSPITAL LOCATION & CONTACT:
+Isalu Hospitals, No. 46, Ijaiye Road, Ogba, Ikeja, Lagos
+Contact: +234 800 47258 2273
+
+Please arrive 15 minutes before your consultation window for nursing triage clearance.
+
+Verify / Track Appointment:
+${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=${encodeURIComponent(bk.reference_code)}
+`;
+
+    return `mailto:${encodeURIComponent(bk.patient_email || booking?.patient_email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  // Handle Share or Copy
+  const handleShareOrCopy = async (bk: Booking) => {
+    const docName = getDoctorInitialName(doctor || bk.doctor || bk.doctor_name || booking?.doctor || booking?.doctor_name);
+    const clinicName = bk.doctor_specialty || bk.department?.name || doctor?.specialty || booking?.doctor_specialty || booking?.department?.name || 'Specialist Consultation';
+    const dateStr = bk.date || bk.appointment_date || selectedDate;
+    const timeStr = bk.time || bk.appointment_time || booking?.time || booking?.appointment_time || 'Consultation Shift';
+    const verifyUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=${encodeURIComponent(bk.reference_code)}`;
+
+    const shareText = `Isalu Hospitals Rescheduled Consultation Ticket: ${bk.reference_code}\nPatient: ${bk.patient_name || booking?.patient_name}\nClinic: ${clinicName}\nDoctor: ${docName}\nRescheduled Date: ${dateStr} (${timeStr})\nVerify: ${verifyUrl}`;
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Isalu Hospitals Rescheduled Ticket - ${bk.reference_code}`,
+          text: shareText,
+          url: verifyUrl,
+        });
+        return;
+      } catch (err: unknown) {
+        if ((err as Error)?.name === 'AbortError') return;
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        setCopiedTicket(true);
+        setTimeout(() => setCopiedTicket(false), 3000);
+      } catch {
+        // fallback
+      }
+    }
   };
 
   const currentDateDisplay = booking.date || booking.appointment_date || 'Current Date';
@@ -214,39 +347,41 @@ export default function RescheduleModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg sm:max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
         
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
-                rescheduledBooking
-                  ? 'bg-emerald-100/80 border border-emerald-200 text-emerald-700'
-                  : 'bg-teal-100/70 border border-teal-200 text-teal-700'
-              }`}
-            >
-              {rescheduledBooking ? (
-                <CheckCircle2 className="w-5 h-5" />
-              ) : (
-                <CalendarClock className="w-5 h-5" />
-              )}
-            </div>
-            <div>
-              <h2 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                {rescheduledBooking ? 'Consultation Rescheduled' : 'Reschedule Consultation'}
-              </h2>
-              <p className="text-xs text-slate-500">
-                Ticket: <strong className="font-mono text-slate-800">{booking.reference_code}</strong>
-              </p>
-            </div>
-          </div>
-
+        {/* Modal Header */}
+        <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 text-white relative shrink-0">
           <button
             type="button"
             onClick={handleClose}
-            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+            className="absolute top-4 right-4 text-slate-400 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
+            title="Close modal"
           >
             <X className="w-4 h-4" />
           </button>
+
+          <div className="flex items-center gap-2.5 mb-1.5 pr-10">
+            <span className="px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 truncate">
+              {getClinicIcon(booking.doctor_specialty || booking.department?.name || doctor?.specialty)}
+              <span>{booking.doctor_specialty || booking.department?.name || doctor?.specialty || 'Specialty'} Clinic</span>
+            </span>
+            <span className="text-[10px] text-slate-400 font-semibold font-mono">
+              Ticket: <strong className="text-teal-300 font-bold">{booking.reference_code}</strong>
+            </span>
+          </div>
+
+          <h3 className="text-base sm:text-lg font-black text-white tracking-tight">
+            {rescheduledBooking ? 'Consultation Rescheduled & Confirmed' : 'Reschedule Specialist Consultation'}
+          </h3>
+          <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5">
+            {rescheduledBooking
+              ? 'Your consultation schedule has been updated. You can print or share your official slip.'
+              : 'Select a new active consultation date on the specialist calendar to update your appointment.'}
+          </p>
+
+          {/* Progress Steps Indicators */}
+          <div className="grid grid-cols-2 gap-1.5 mt-3 pt-2.5 border-t border-white/10">
+            <div className="h-1.5 rounded-full bg-teal-400" />
+            <div className={`h-1.5 rounded-full transition-colors ${rescheduledBooking ? 'bg-teal-400' : 'bg-white/20'}`} />
+          </div>
         </div>
 
         {/* Modal Content: Printable Voucher on Success OR Reschedule Form */}
@@ -395,24 +530,66 @@ export default function RescheduleModal({
               </div>
             </div>
 
-            {/* Action Bar */}
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                Close
-              </button>
+            {/* Multi-channel Actions Bar */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 space-y-3">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
+                <span>Print or Share Rescheduled Voucher:</span>
+                {copiedTicket && (
+                  <span className="text-emerald-600 flex items-center gap-1 text-[11px] animate-in fade-in">
+                    <Check className="w-3.5 h-3.5" /> Details copied!
+                  </span>
+                )}
+              </div>
 
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
-              >
-                <Printer className="w-4 h-4 text-teal-400" />
-                <span>Print Official Slip</span>
-              </button>
+              {/* 3 Main Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 text-teal-400" />
+                  <span>Print Slip</span>
+                </button>
+
+                <a
+                  href={getWhatsAppShareUrl(rescheduledBooking)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+                >
+                  <WhatsAppIcon className="w-4 h-4" />
+                  <span>WhatsApp</span>
+                </a>
+
+                <a
+                  href={getEmailShareUrl(rescheduledBooking)}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Email Slip</span>
+                </a>
+              </div>
+
+              {/* Secondary Actions */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleShareOrCopy(rescheduledBooking)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  {copiedTicket ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                  <span>{copiedTicket ? 'Copied to Clipboard' : 'Copy Ticket Details'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -617,7 +794,7 @@ export default function RescheduleModal({
                 availability?.is_booking_closed ||
                 availability?.remaining_slots <= 0
               }
-              className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md shadow-teal-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-[#0085D0] hover:bg-[#006bac] text-white font-bold text-xs shadow-md shadow-[#0085D0]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {submitting ? (
                 <>

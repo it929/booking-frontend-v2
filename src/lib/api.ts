@@ -349,6 +349,8 @@ export async function checkDoctorAvailability(doctorId: number | string, date: s
 
 export async function getBookings(filters?: {
   date?: string;
+  doctor_id?: number | string;
+  department_id?: number | string;
   status?: string;
   payment_status?: string;
   payment_type?: string;
@@ -359,7 +361,7 @@ export async function getBookings(filters?: {
   const query = new URLSearchParams();
   if (filters) {
     Object.entries(filters).forEach(([k, v]) => {
-      if (v) query.append(k, v);
+      if (v !== undefined && v !== null && v !== '') query.append(k, String(v));
     });
   }
   const qs = query.toString();

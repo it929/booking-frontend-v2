@@ -16,11 +16,23 @@ import {
   CreditCard, 
   ShieldCheck, 
   PhoneCall,
-  CalendarClock
+  CalendarClock,
+  Mail,
+  Copy,
+  Check
 } from 'lucide-react';
 import Link from 'next/link';
 import { printElement } from '@/lib/printUtils';
 import RescheduleModal from '@/components/RescheduleModal';
+
+function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.969.574 1.815.88 2.791.88 3.181 0 5.767-2.586 5.767-5.766.001-3.18-2.585-5.766-5.767-5.766zm3.393 8.303c-.149.421-.736.78-1.02.83-.284.05-.62.062-1.895-.469-1.629-.678-2.678-2.339-2.759-2.449-.081-.11-.655-.873-.655-1.664 0-.791.413-1.18.561-1.341.149-.161.326-.201.435-.201.109 0 .218.001.312.006.101.005.237-.038.37.283.149.362.508 1.239.552 1.33.044.091.074.198.015.318-.059.12-.089.198-.178.301-.089.103-.187.23-.267.31-.089.088-.182.184-.078.362.103.178.461.761.99 1.232.682.608 1.258.796 1.436.885.178.089.282.078.386-.041.104-.119.444-.517.563-.695.118-.178.237-.149.397-.089.16.06 1.011.477 1.185.564.174.087.291.13.333.201.042.071.042.411-.107.832z" />
+      <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.176L2 22l4.982-1.309C8.423 21.536 10.147 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.182c-1.67 0-3.235-.487-4.558-1.325l-.326-.208-2.969.779.792-2.894-.225-.357A8.14 8.14 0 0 1 3.818 12c0-4.512 3.67-8.182 8.182-8.182 4.512 0 8.182 3.67 8.182 8.182 0 4.512-3.67 8.182-8.182 8.182z" />
+    </svg>
+  );
+}
 
 export default function CheckStatusPage() {
   const [refCode, setRefCode] = useState('');
@@ -29,6 +41,7 @@ export default function CheckStatusPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [copiedTicket, setCopiedTicket] = useState(false);
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,13 +227,42 @@ export default function CheckStatusPage() {
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => printElement('printable-ticket', 'Appointment Status - Isalu Hospitals')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold transition-colors cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" /> Print Details
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`*ISALU HOSPITALS - APPOINTMENT TICKET*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🎟️ *Ticket Reference:* ${booking.reference_code}\n👤 *Patient:* ${booking.patient_name}\n🏥 *Clinic:* ${booking.doctor_specialty || booking.department?.name || 'Specialist Consultation'}\n👨‍⚕️ *Specialist:* ${getDoctorInitialName(booking.doctor || booking.doctor_name)}\n📅 *Date & Time:* ${booking.date || booking.appointment_date} at ${booking.time || booking.appointment_time}\n💳 *Billing:* ${booking.payment_type}${booking.hmo_policy_code ? ` (Policy ID: ${booking.hmo_policy_code})` : ''}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📍 Address: No. 46, Ijaiye Road, Ogba, Ikeja, Lagos\n🔗 Track: ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=${encodeURIComponent(booking.reference_code)}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all active:scale-95 cursor-pointer shadow-xs"
+                >
+                  <WhatsAppIcon className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const shareText = `Isalu Hospitals Appointment: ${booking.reference_code}\nPatient: ${booking.patient_name}\nDate: ${booking.date || booking.appointment_date} (${booking.time || booking.appointment_time})\nTrack: ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=${encodeURIComponent(booking.reference_code)}`;
+                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                      await navigator.clipboard.writeText(shareText);
+                      setCopiedTicket(true);
+                      setTimeout(() => setCopiedTicket(false), 3000);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold transition-colors cursor-pointer"
+                >
+                  {copiedTicket ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                  <span>{copiedTicket ? 'Copied' : 'Copy'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => printElement('printable-ticket', 'Appointment Status - Isalu Hospitals')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition-all active:scale-95 cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Print Slip</span>
+                </button>
+              </div>
             </div>
           </div>
 

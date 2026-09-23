@@ -9,7 +9,6 @@ import {
   Search,
   RefreshCw,
   Plus,
-  Tv,
   Bell,
   CheckCircle2,
   AlertCircle,
@@ -40,9 +39,9 @@ interface DashboardTopbarProps {
 }
 
 const submoduleBreadcrumbMap: Record<SubmoduleId, { module: string; sub: string }> = {
+  'today-clinics': { module: 'Triage & Clinical Queue', sub: "Today's Clinic Roster" },
   'triage-queue': { module: 'Triage & Clinical Queue', sub: 'Arrivals & Check-in' },
   'triage-completed': { module: 'Triage & Clinical Queue', sub: 'Completed Consultations' },
-  'triage-tv': { module: 'Triage & Clinical Queue', sub: 'Waiting Room TV Board' },
   'triage-walkin': { module: 'Triage & Clinical Queue', sub: 'Walk-in Intake Form' },
   'hmo-approvals': { module: 'Insurance & HMO Desk', sub: 'Pre-Auth Clearances' },
   'hmo-partners': { module: 'Insurance & HMO Desk', sub: 'HMO Providers & Codes' },
@@ -136,7 +135,7 @@ export default function DashboardTopbar({
   const totalAlerts = pendingHmoCount + waitingTriageCount + pendingBillingCount;
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200/80 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between gap-4 shadow-xs">
+    <header className="h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-4 sm:px-6 flex items-center justify-between gap-4 shadow-xs transition-all">
       {/* Left: Mobile trigger & Breadcrumbs */}
       <div className="flex items-center gap-3 min-w-0">
         <button
@@ -148,10 +147,10 @@ export default function DashboardTopbar({
         </button>
 
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium truncate">
-            <span className="text-teal-700 font-semibold">{breadcrumb.module}</span>
-            <span>/</span>
-            <span className="text-slate-700 font-bold truncate">{breadcrumb.sub}</span>
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+            <span className="text-teal-700 font-semibold shrink-0">{breadcrumb.module}</span>
+            <span className="text-slate-300">/</span>
+            <span className="text-slate-800 font-bold truncate">{breadcrumb.sub}</span>
           </div>
           <div className="text-[11px] text-slate-400 hidden sm:block">
             {new Date().toLocaleDateString('en-US', {
@@ -199,18 +198,6 @@ export default function DashboardTopbar({
           <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-teal-600' : 'text-slate-400'}`} />
           <span className="hidden xl:inline">Live Synced</span>
         </button>
-
-        {/* Quick TV Board launcher (Triage / Monitor / Admin) */}
-        {canAccessTriage && (
-          <button
-            onClick={() => onSelectSubmodule('triage-tv')}
-            className="p-2 rounded-xl text-slate-600 hover:text-teal-700 hover:bg-teal-50 border border-transparent hover:border-teal-200 transition-colors hidden sm:flex items-center gap-1.5 text-xs font-semibold"
-            title="Open Waiting Room TV"
-          >
-            <Tv className="w-4 h-4 text-teal-600" />
-            <span className="hidden xl:inline">TV Board</span>
-          </button>
-        )}
 
         {/* Quick New Booking Button (Helpdesk / Intake / Admin) */}
         {canCreateIntake && (
