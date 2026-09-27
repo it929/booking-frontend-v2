@@ -24,6 +24,7 @@ import {
 import Link from 'next/link';
 import { printElement } from '@/lib/printUtils';
 import RescheduleModal from '@/components/RescheduleModal';
+import IsaluLogo from '@/components/IsaluLogo';
 
 function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
@@ -68,44 +69,45 @@ export default function CheckStatusPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
-      <div className="text-center max-w-xl mx-auto mb-8 space-y-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-teal-600 bg-teal-50 px-3.5 py-1 rounded-full border border-teal-200">
-          Reschedule Appointment
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8">
+      <div className="text-center max-w-xl mx-auto space-y-3">
+        <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0082cd] bg-sky-50 px-3.5 py-1 rounded-full border border-sky-200 shadow-2xs">
+          <CalendarClock className="w-3.5 h-3.5 text-[#0082cd]" />
+          <span>Patient Portal & Verification</span>
         </span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Reschedule Your Appointment
+        <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+          Track Ticket & Reschedule Appointment
         </h1>
-        <p className="text-xs sm:text-sm text-slate-500">
-          Enter your reference code to view your booking details and reschedule your appointment date or time.
+        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+          Enter your unique Appointment Reference Code (e.g. <strong className="text-slate-900 font-mono">ISL-10294</strong>) to track your clinical booking status, download your verification slip, or reschedule your consultation.
         </p>
       </div>
 
       {/* Lookup Form */}
-      <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200 shadow-md shadow-slate-200/40 mb-6">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm">
         <form onSubmit={handleLookup} className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-end">
           <div className="sm:col-span-5 space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700">
-              Reference Code <span className="text-red-500">*</span>
+            <label className="text-xs font-bold text-slate-800">
+              Reference Code <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               required
-              placeholder="e.g. ISL-90214"
+              placeholder="e.g. ISL-10294"
               value={refCode}
               onChange={(e) => setRefCode(e.target.value.toUpperCase())}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-teal-500 font-bold"
+              className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 text-sm uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#0082cd]/20 focus:border-[#0082cd] font-mono font-bold bg-slate-50/50 focus:bg-white transition-all placeholder:text-slate-400 placeholder:normal-case placeholder:font-sans"
             />
           </div>
 
           <div className="sm:col-span-4 space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700">Phone Number (Optional)</label>
+            <label className="text-xs font-bold text-slate-800">Phone Number <span className="text-slate-400 font-normal">(Optional)</span></label>
             <input
               type="tel"
-              placeholder="+234 800 000 0000"
+              placeholder="e.g. 0803 123 4567"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0082cd]/20 focus:border-[#0082cd] bg-slate-50/50 focus:bg-white transition-all placeholder:text-slate-400 font-medium"
             />
           </div>
 
@@ -113,41 +115,55 @@ export default function CheckStatusPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm shadow-md shadow-teal-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-[#0082cd] to-[#006bac] hover:from-[#0073b6] hover:to-[#005a91] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#0082cd]/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
             >
-              {loading ? 'Searching...' : <><Search className="w-4 h-4" /> Find Booking</>}
+              {loading ? (
+                <>
+                  <Clock className="w-4 h-4 animate-spin text-white" />
+                  <span>Searching...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4" />
+                  <span>Find Ticket</span>
+                </>
+              )}
             </button>
           </div>
         </form>
 
         {error && (
-          <div className="mt-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-            <span>{error}</span>
+          <div className="mt-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5 animate-slide-up">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span className="font-medium">{error}</span>
           </div>
         )}
       </div>
 
       {/* Result Display */}
       {booking && (
-        <div className="space-y-6">
-
-          <div id="printable-ticket" className="bg-white rounded-2xl border border-slate-200 shadow-md p-6 sm:p-8 space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
-              <div>
-                <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">Ticket Number</span>
-                <h2 className="text-3xl font-black text-slate-900 tracking-wide mt-0.5">{booking.reference_code}</h2>
+        <div className="space-y-6 animate-scale-pop">
+          <div id="printable-ticket" className="bg-white rounded-3xl border border-slate-200/90 shadow-lg p-6 sm:p-8 space-y-6">
+            {/* Ticket Header with Logo */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-dashed border-slate-200 pb-5">
+              <div className="space-y-1">
+                <IsaluLogo variant="full" size="md" />
+                <p className="text-[11px] text-slate-500 font-medium">
+                  No. 46, Ijaiye Road, Ogba, Ikeja, Lagos • Emergency: +234 800 47258 2273
+                </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col items-start sm:items-end gap-1.5">
+                <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Ticket Reference</span>
+                <span className="text-2xl sm:text-3xl font-black font-mono text-[#0082cd] tracking-tight">{booking.reference_code}</span>
                 <span
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                  className={`px-3 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
                     booking.status === 'Checked In'
-                      ? 'bg-emerald-100 text-emerald-800'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       : booking.status === 'Confirmed'
-                      ? 'bg-blue-100 text-blue-800'
+                      ? 'bg-sky-100 text-[#006bac] border border-sky-200'
                       : booking.status === 'Completed'
-                      ? 'bg-slate-100 text-slate-800'
-                      : 'bg-amber-100 text-amber-800'
+                      ? 'bg-slate-100 text-slate-800 border border-slate-200'
+                      : 'bg-amber-100 text-amber-800 border border-amber-200'
                   }`}
                 >
                   Status: {booking.status}
@@ -155,71 +171,82 @@ export default function CheckStatusPage() {
               </div>
             </div>
 
-
-
             {/* Details Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-100 text-xs">
               <div className="space-y-1">
-                <span className="text-xs text-slate-400">Patient Name</span>
-                <p className="font-bold text-slate-900 text-sm">{booking.patient_name}</p>
-                <p className="text-xs text-slate-500">{booking.patient_phone}</p>
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Patient Name</span>
+                <p className="font-black text-slate-900 text-sm">{booking.patient_name}</p>
+                <p className="text-xs text-slate-500 font-medium">{booking.patient_phone}</p>
               </div>
 
               <div className="space-y-1">
-                <span className="text-xs text-slate-400">Specialist Consultant</span>
-                <p className="font-bold text-slate-900 text-sm">{getDoctorInitialName(booking.doctor || booking.doctor_name)}</p>
-                <p className="text-xs text-teal-600 font-medium">{booking.doctor_specialty}</p>
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Specialist Consultant</span>
+                <p className="font-black text-slate-900 text-sm">{getDoctorInitialName(booking.doctor || booking.doctor_name)}</p>
+                <p className="text-xs text-[#0082cd] font-bold">{booking.doctor_specialty || booking.department?.name || 'Specialist Consultation'}</p>
               </div>
 
               <div className="space-y-1">
-                <span className="text-xs text-slate-400">Scheduled Time</span>
-                <p className="font-bold text-slate-900 text-sm">{booking.date || booking.appointment_date}</p>
-                <p className="text-xs text-slate-600">{booking.time || booking.appointment_time}</p>
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Consultation Schedule</span>
+                <p className="font-black text-slate-900 text-sm">{booking.date || booking.appointment_date}</p>
+                <p className="text-xs text-slate-600 font-mono font-bold">{booking.time || booking.appointment_time}</p>
               </div>
 
               <div className="space-y-1">
-                <span className="text-xs text-slate-400">Payment Category</span>
-                <p className="font-semibold text-slate-800 text-sm">{booking.payment_type}</p>
-                <p className="text-xs text-slate-500">Status: <strong className="text-slate-800">{booking.payment_status}</strong></p>
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Billing Channel</span>
+                <p className="font-bold text-slate-800 text-sm">{booking.payment_type}</p>
+                <p className="text-xs text-slate-500">
+                  Settlement: <strong className="text-emerald-700 font-bold">{booking.payment_status || 'Verified at Desk'}</strong>
+                </p>
               </div>
 
               {booking.payment_type.includes('HMO') && (
-                <div className="space-y-1">
-                  <span className="text-xs text-slate-400">HMO Authorization</span>
-                  <p className="font-semibold text-slate-800 text-sm">{booking.hmo_name || 'HMO Provider'}</p>
-                  <p className="text-xs text-teal-700">
-                    Pre-Auth Status: <strong>{booking.hmo_status}</strong>
-                    {booking.hmo_auth_code && ` (${booking.hmo_auth_code})`}
-                  </p>
-                </div>
-              )}
-
-              {booking.invoice_ref && (
-                <div className="space-y-1">
-                  <span className="text-xs text-slate-400">Billing Invoice</span>
-                  <p className="font-bold text-slate-900 text-sm">{booking.invoice_ref}</p>
-                  <p className="text-xs text-emerald-600 font-medium">Receipt Settled</p>
+                <div className="space-y-1 sm:col-span-2 bg-sky-50/80 p-3 rounded-xl border border-sky-100">
+                  <span className="text-[10px] font-bold text-sky-800 uppercase tracking-wider block">HMO Health Provider Details</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-bold text-slate-900 text-xs">{booking.hmo_name || 'HMO Provider'}</p>
+                    {booking.hmo_policy_code && (
+                      <span className="font-mono text-xs font-bold text-sky-900 bg-white px-2 py-0.5 rounded border border-sky-200">
+                        Enrollee ID: {booking.hmo_policy_code}
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Reschedule Note if present */}
             {booking.reason && booking.reason.includes('Rescheduled') && (
-              <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200 text-teal-900 text-xs flex items-center gap-2">
-                <CalendarClock className="w-4 h-4 text-teal-700 shrink-0" />
+              <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200 text-sky-900 text-xs flex items-center gap-2.5">
+                <CalendarClock className="w-4 h-4 text-[#0082cd] shrink-0" />
                 <span><strong>Schedule Record:</strong> {booking.reason}</span>
               </div>
             )}
 
+            {/* Barcode & Notice */}
+            <div className="pt-2 text-center space-y-1.5 border-t border-slate-100">
+              <div className="inline-block p-2 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-center gap-1.5 tracking-widest font-mono text-lg font-black text-slate-800">
+                  ||| | |||| | || ||| || ||| ||||
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                  Scan at Outpatient Triage Reception Desk
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Please present this voucher upon arrival 15 minutes before your shift window.
+              </p>
+            </div>
+
+            {/* Actions Bar */}
             <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
               <div className="flex items-center gap-2">
                 {booking.is_active && !['Completed', 'Cancelled', 'Rejected', 'Deleted', 'Checked In', 'In Consultation'].includes(booking.status) ? (
                   <button
                     type="button"
                     onClick={() => setIsRescheduleOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold border border-teal-200 transition-colors shadow-2xs cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-sky-50 hover:bg-sky-100 text-[#006bac] font-bold border border-sky-200 transition-colors shadow-2xs cursor-pointer active:scale-95"
                   >
-                    <CalendarClock className="w-4 h-4 text-teal-700" />
+                    <CalendarClock className="w-4 h-4 text-[#0082cd]" />
                     <span>Reschedule Consultation</span>
                   </button>
                 ) : (
@@ -232,7 +259,7 @@ export default function CheckStatusPage() {
                   href={`https://wa.me/?text=${encodeURIComponent(`*ISALU HOSPITALS - APPOINTMENT TICKET*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🎟️ *Ticket Reference:* ${booking.reference_code}\n👤 *Patient:* ${booking.patient_name}\n🏥 *Clinic:* ${booking.doctor_specialty || booking.department?.name || 'Specialist Consultation'}\n👨‍⚕️ *Specialist:* ${getDoctorInitialName(booking.doctor || booking.doctor_name)}\n📅 *Date & Time:* ${booking.date || booking.appointment_date} at ${booking.time || booking.appointment_time}\n💳 *Billing:* ${booking.payment_type}${booking.hmo_policy_code ? ` (Policy ID: ${booking.hmo_policy_code})` : ''}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📍 Address: No. 46, Ijaiye Road, Ogba, Ikeja, Lagos\n🔗 Track: ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=${encodeURIComponent(booking.reference_code)}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all active:scale-95 cursor-pointer shadow-xs"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all active:scale-95 cursor-pointer shadow-xs"
                 >
                   <WhatsAppIcon className="w-3.5 h-3.5" />
                   <span>WhatsApp</span>
@@ -248,7 +275,7 @@ export default function CheckStatusPage() {
                       setTimeout(() => setCopiedTicket(false), 3000);
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold transition-colors cursor-pointer"
                 >
                   {copiedTicket ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
                   <span>{copiedTicket ? 'Copied' : 'Copy'}</span>
@@ -257,9 +284,9 @@ export default function CheckStatusPage() {
                 <button
                   type="button"
                   onClick={() => printElement('printable-ticket', 'Appointment Status - Isalu Hospitals')}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition-all active:scale-95 cursor-pointer shadow-xs"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-black text-white font-bold transition-all active:scale-95 cursor-pointer shadow-xs"
                 >
-                  <Printer className="w-3.5 h-3.5 text-teal-400" />
+                  <Printer className="w-3.5 h-3.5 text-sky-400" />
                   <span>Print Slip</span>
                 </button>
               </div>

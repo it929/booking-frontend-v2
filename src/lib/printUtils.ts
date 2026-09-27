@@ -59,8 +59,9 @@ export function printElement(
     .map((el) => el.outerHTML)
     .join('\n');
 
-  const isFullWidth = options?.fullWidth ?? false;
-  const isLandscape = options?.landscape ?? false;
+  const isManifest = elementId.toLowerCase().includes('manifest');
+  const isFullWidth = options?.fullWidth ?? isManifest;
+  const isLandscape = options?.landscape ?? isManifest;
   const pageSize = isLandscape ? 'landscape' : 'portrait';
   const pageMargin = options?.margin || (isFullWidth ? '6mm 8mm' : '10mm');
 
@@ -90,6 +91,7 @@ export function printElement(
             padding: 0 !important;
             width: 100% !important;
             display: block !important;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
           }
           .print-wrapper {
             width: 100% !important;
@@ -114,8 +116,8 @@ export function printElement(
             width: 100% !important;
             max-width: ${isFullWidth ? '100%' : '440px'} !important;
             margin: 0 auto !important;
-            padding: ${isFullWidth ? '4px 0' : '18px'} !important;
-            page-break-inside: avoid !important;
+            padding: ${isFullWidth ? '0' : '18px'} !important;
+            ${isFullWidth ? 'page-break-inside: auto !important;' : 'page-break-inside: avoid !important;'}
           }
           ${
             !isFullWidth
@@ -136,9 +138,32 @@ export function printElement(
           table {
             width: 100% !important;
             border-collapse: collapse !important;
+            page-break-inside: auto !important;
+            font-size: 11px !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tfoot {
+            display: table-footer-group !important;
           }
           th, td {
+            border: 1px solid #94a3b8 !important;
+            padding: 6px 8px !important;
+            word-break: normal !important;
+          }
+          th {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+            font-weight: 800 !important;
+          }
+          .print-footer-signatures {
             page-break-inside: avoid !important;
+            margin-top: 24px !important;
           }
           `
           }

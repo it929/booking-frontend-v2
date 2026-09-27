@@ -26,7 +26,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Hospital,
-  CheckCircle2
+  CheckCircle2,
+  CalendarClock
 } from 'lucide-react';
 import IsaluLogo from '@/components/IsaluLogo';
 
@@ -34,6 +35,7 @@ export type SubmoduleId =
   | 'today-clinics'
   | 'triage-queue'
   | 'triage-completed'
+  | 'specialist-session-shift'
   | 'triage-walkin'
   | 'hmo-approvals'
   | 'hmo-partners'
@@ -121,6 +123,7 @@ export default function DashboardSidebar({
         { id: 'today-clinics', title: "Today's Clinic Roster", icon: Calendar, badge: badges.todayCount },
         { id: 'triage-queue', title: 'Arrivals & Check-in', icon: UserCheck, badge: badges.waitingTriage },
         { id: 'triage-completed', title: 'Completed Bookings', icon: CheckCircle2, badge: badges.completedCount },
+        { id: 'specialist-session-shift', title: 'Specialist Session Shift', icon: CalendarClock },
         { id: 'triage-walkin', title: 'Walk-in Intake Form', icon: PlusCircle, allowedRoles: ['helpdesk', 'doctor', 'reception', 'admin'] },
       ],
     },

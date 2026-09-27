@@ -42,6 +42,7 @@ const submoduleBreadcrumbMap: Record<SubmoduleId, { module: string; sub: string 
   'today-clinics': { module: 'Triage & Clinical Queue', sub: "Today's Clinic Roster" },
   'triage-queue': { module: 'Triage & Clinical Queue', sub: 'Arrivals & Check-in' },
   'triage-completed': { module: 'Triage & Clinical Queue', sub: 'Completed Consultations' },
+  'specialist-session-shift': { module: 'Triage & Clinical Queue', sub: 'Specialist Session Shift' },
   'triage-walkin': { module: 'Triage & Clinical Queue', sub: 'Walk-in Intake Form' },
   'hmo-approvals': { module: 'Insurance & HMO Desk', sub: 'Pre-Auth Clearances' },
   'hmo-partners': { module: 'Insurance & HMO Desk', sub: 'HMO Providers & Codes' },

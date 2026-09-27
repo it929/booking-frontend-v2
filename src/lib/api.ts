@@ -416,6 +416,47 @@ export async function rescheduleBooking(
   return res;
 }
 
+export async function bulkRescheduleDoctorSession(payload: {
+  doctor_id: number | string;
+  source_date: string;
+  target_date: string;
+  reason: string;
+  booking_ids?: number[];
+  keep_same_time?: boolean;
+  new_time?: string;
+}): Promise<{
+  message: string;
+  updated_count: number;
+  source_date: string;
+  target_date: string;
+  doctor: {
+    id: number;
+    name: string;
+    full_name?: string;
+    specialty?: string;
+  };
+  updated_bookings: Booking[];
+}> {
+  const res = await request<{
+    message: string;
+    updated_count: number;
+    source_date: string;
+    target_date: string;
+    doctor: {
+      id: number;
+      name: string;
+      full_name?: string;
+      specialty?: string;
+    };
+    updated_bookings: Booking[];
+  }>('/bookings/bulk-reschedule-doctor-session', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  invalidateCache('doctors');
+  return res;
+}
+
 export async function cancelBooking(id: number | string, reason?: string): Promise<{ message: string }> {
   const res = await request<{ message: string }>(`/bookings/${id}`, {
     method: 'DELETE',

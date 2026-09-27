@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Department,
   Doctor,
@@ -97,8 +98,9 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
   const [hmos, setHmos] = useState<HmoCompany[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Clinic directory search
+  // Clinic directory search & category filter
   const [searchClinic, setSearchClinic] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
   // ---------------- MODAL FLOW STATES ----------------
   // Modal is opened when a patient clicks on any clinic card
@@ -136,6 +138,30 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [duplicateRef, setDuplicateRef] = useState<string | null>(null);
   const [copiedTicket, setCopiedTicket] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock body scroll and close on ESC key when modal is open
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCloseModal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isModalOpen]);
 
   // Scroll to top inside modal when modalStep changes
   useEffect(() => {
@@ -400,6 +426,199 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
     return result;
   };
 
+  // Helper: Parse time string (e.g. "02:00 PM", "2:00 PM", "14:00", "14:00:00") into minutes from midnight (0..1439)
+  const parseTimeToMinutes = (timeStr?: string | null): number | null => {
+    if (!timeStr) return null;
+    const clean = timeStr.trim();
+    const match = clean.match(/^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(AM|PM)?$/i);
+    if (!match) return null;
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2] ? parseInt(match[2], 10) : 0;
+    const modifier = match[3]?.toUpperCase();
+
+    if (modifier === 'PM' && hours < 12) {
+      hours += 12;
+    } else if (modifier === 'AM' && hours === 12) {
+      hours = 0;
+    }
+    return hours * 60 + minutes;
+  };
+
+  // Helper: Extract the latest shift end time in minutes from a range like "02:00 PM - 04:00 PM, 12:00 PM - 02:00 PM"
+  const getLatestShiftEndMinutes = (shiftStr?: string | null): number | null => {
+    if (!shiftStr) return null;
+    const subShifts = shiftStr.split(/[,|]/);
+    let latestEnd: number | null = null;
+
+    subShifts.forEach((s) => {
+      const parts = s.split(/[-–—]/);
+      const endStr = parts.length >= 2 ? parts[parts.length - 1].trim() : s.trim();
+      const endMin = parseTimeToMinutes(endStr);
+      if (endMin !== null) {
+        if (latestEnd === null || endMin > latestEnd) {
+          latestEnd = endMin;
+        }
+      }
+    });
+
+    return latestEnd;
+  };
+
+  // Helper: Determine real-time today operating status for a clinic
+  const getClinicTodayStatus = (
+    dept: Department,
+    schedules: ClinicScheduleItem[]
+  ): {
+    isScheduledToday: boolean;
+    isOpenToday: boolean;
+    isFullyBookedToday: boolean;
+    isShiftEndedToday: boolean;
+  } => {
+    const now = new Date();
+    const todayDayShort = now.toLocaleDateString('en-US', { weekday: 'short' }); // e.g. "Sat"
+    const todayYear = now.getFullYear();
+    const todayMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const todayDay = String(now.getDate()).padStart(2, '0');
+    const todayDateStr = `${todayYear}-${todayMonth}-${todayDay}`;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // Find all doctors belonging to this clinic
+    const clinicDocs = doctors.filter(
+      (d) => d.department_id === dept.id || (d.department && d.department.id === dept.id)
+    );
+
+    // Check if clinic schedules list includes today
+    const scheduleForToday = schedules.find((s) =>
+      s.day.toLowerCase().includes(todayDayShort.toLowerCase())
+    );
+
+    // Check which doctors are scheduled on duty today
+    const docsOnDutyToday = clinicDocs.filter((doc) => {
+      if (!doc.status) return false;
+
+      if (doc.schedules && doc.schedules.length > 0) {
+        const hasSched = doc.schedules.some((s) => {
+          if (!s.status) return false;
+          const d = (s.day_of_week || '').toLowerCase();
+          return d.includes(todayDayShort.toLowerCase()) || todayDayShort.toLowerCase().includes(d);
+        });
+        if (hasSched) return true;
+      }
+
+      if (doc.available_days && doc.available_days.length > 0) {
+        const todayLower = todayDayShort.toLowerCase();
+        const hasAvail = doc.available_days.some((day) => {
+          const d = day.toLowerCase();
+          if (d.includes('mon') && d.includes('fri') && !['sat', 'sun'].includes(todayLower)) return true;
+          if (d.includes('mon') && d.includes('sat') && !['sun'].includes(todayLower)) return true;
+          if (d.includes('everyday') || d.includes('daily')) return true;
+          return d.includes(todayLower) || todayLower.includes(d);
+        });
+        if (hasAvail) return true;
+      }
+
+      return false;
+    });
+
+    const isScheduledToday = docsOnDutyToday.length > 0 || Boolean(scheduleForToday);
+
+    if (!isScheduledToday) {
+      return {
+        isScheduledToday: false,
+        isOpenToday: false,
+        isFullyBookedToday: false,
+        isShiftEndedToday: false,
+      };
+    }
+
+    // Check if the clinic schedule's shift end time has already elapsed
+    let clinicScheduleEnded = false;
+    if (scheduleForToday?.shift_time) {
+      const endMin = getLatestShiftEndMinutes(scheduleForToday.shift_time);
+      if (endMin !== null && nowMinutes >= endMin) {
+        clinicScheduleEnded = true;
+      }
+    }
+
+    if (docsOnDutyToday.length === 0 && clinicScheduleEnded) {
+      return {
+        isScheduledToday: true,
+        isOpenToday: false,
+        isFullyBookedToday: false,
+        isShiftEndedToday: true,
+      };
+    }
+
+    let availableDocsCount = 0;
+    let fullyBookedDocsCount = 0;
+    let shiftEndedDocsCount = 0;
+
+    docsOnDutyToday.forEach((doc) => {
+      // 1. Is doctor fully booked today?
+      const isDocFullyBooked = Boolean(doc.fully_booked_dates && doc.fully_booked_dates.includes(todayDateStr));
+      if (isDocFullyBooked) {
+        fullyBookedDocsCount++;
+        return;
+      }
+
+      // 2. Is doctor closed for today in backend?
+      const isDocClosed = Boolean(doc.closed_dates && doc.closed_dates.includes(todayDateStr));
+      if (isDocClosed) {
+        shiftEndedDocsCount++;
+        return;
+      }
+
+      // 3. Check doctor's shift time for today
+      const shifts: string[] = [];
+      if (doc.schedules && doc.schedules.length > 0) {
+        doc.schedules.forEach((s) => {
+          if (!s.status) return;
+          const d = (s.day_of_week || '').toLowerCase();
+          if (d.includes(todayDayShort.toLowerCase()) || todayDayShort.toLowerCase().includes(d)) {
+            if (s.end_time) shifts.push(s.end_time);
+            else if (s.shift_time || s.formatted_shift) shifts.push(s.shift_time || s.formatted_shift || '');
+          }
+        });
+      }
+
+      if (shifts.length === 0 && (doc.shift_time || doc.formatted_shift)) {
+        shifts.push(doc.shift_time || doc.formatted_shift || '');
+      }
+
+      if (shifts.length > 0) {
+        let latestEnd: number | null = null;
+        shifts.forEach((sh) => {
+          const endMin = getLatestShiftEndMinutes(sh);
+          if (endMin !== null && (latestEnd === null || endMin > latestEnd)) {
+            latestEnd = endMin;
+          }
+        });
+
+        if (latestEnd !== null && nowMinutes >= latestEnd) {
+          shiftEndedDocsCount++;
+          return;
+        }
+      } else if (clinicScheduleEnded) {
+        shiftEndedDocsCount++;
+        return;
+      }
+
+      // Doctor is on duty, has capacity, and shift has not ended
+      availableDocsCount++;
+    });
+
+    const isOpenToday = availableDocsCount > 0 && !clinicScheduleEnded;
+    const isFullyBookedToday = !isOpenToday && fullyBookedDocsCount > 0 && (fullyBookedDocsCount >= shiftEndedDocsCount);
+    const isShiftEndedToday = !isOpenToday;
+
+    return {
+      isScheduledToday: true,
+      isOpenToday,
+      isFullyBookedToday,
+      isShiftEndedToday,
+    };
+  };
+
   // RESET ALL BOOKING & INTAKE STATE
   const resetFormState = (keepDeptId = false) => {
     if (!keepDeptId) setSelectedDeptId(null);
@@ -535,8 +754,19 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
     }
   };
 
-  // Filtered clinics for main directory
+  // Filtered clinics for main directory with category support
   const filteredClinics = departments.filter((dept) => {
+    // Quick Category match
+    if (selectedCategory !== 'ALL') {
+      const name = (dept.name || '').toLowerCase();
+      if (selectedCategory === 'WOMEN' && !(name.includes('gyn') || name.includes('obs') || name.includes('matern') || name.includes('women'))) return false;
+      if (selectedCategory === 'CHILD' && !(name.includes('paed') || name.includes('ped') || name.includes('child') || name.includes('neonat'))) return false;
+      if (selectedCategory === 'CARDIO' && !(name.includes('cardio') || name.includes('heart'))) return false;
+      if (selectedCategory === 'SURGERY' && !(name.includes('surg') || name.includes('ortho') || name.includes('bone') || name.includes('theatre'))) return false;
+      if (selectedCategory === 'EYE_DENTAL' && !(name.includes('eye') || name.includes('ophthal') || name.includes('dent') || name.includes('oral'))) return false;
+      if (selectedCategory === 'INTERNAL' && !(name.includes('internal') || name.includes('family') || name.includes('general') || name.includes('physician') || name.includes('diabet') || name.includes('endocrin'))) return false;
+    }
+
     if (!searchClinic) return true;
     const q = searchClinic.toLowerCase();
     return (
@@ -706,6 +936,35 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
           </div>
         </div>
 
+        {/* Category Filter Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none pt-1">
+          {[
+            { id: 'ALL', label: 'All Specialty Units' },
+            { id: 'WOMEN', label: 'Maternal & O&G' },
+            { id: 'CHILD', label: 'Paediatrics' },
+            { id: 'CARDIO', label: 'Cardiology' },
+            { id: 'SURGERY', label: 'Surgery & Ortho' },
+            { id: 'EYE_DENTAL', label: 'Dental & Eye' },
+            { id: 'INTERNAL', label: 'Internal Medicine' },
+          ].map((cat) => {
+            const active = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-200 shrink-0 cursor-pointer ${
+                  active
+                    ? 'bg-[#0082cd] text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 py-4">
             {[1, 2, 3, 4, 5, 6].map((idx) => (
@@ -738,6 +997,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
               const docCount = doctors.filter(
                 (d) => d.department_id === dept.id || (d.department && d.department.id === dept.id)
               ).length;
+              const clinicStatus = getClinicTodayStatus(dept, schedules);
 
               return (
                 <div
@@ -766,10 +1026,18 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                         </div>
                       </div>
 
-                      <span className="text-sm sm:text-xs font-black text-[#006bac] bg-[#f0f9ff] px-3.5 py-1.5 sm:px-3 sm:py-1 rounded-full border border-[#bae6fd] shrink-0 flex items-center gap-1.5 shadow-2xs group-hover:border-[#7dd3fc] group-hover:bg-[#e0f2fe] transition-colors">
-                        <Users className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#0085D0]" />
-                        <span>{docCount} {docCount === 1 ? 'Doctor' : 'Doctors'}</span>
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {clinicStatus.isOpenToday && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                            <span>Open Today</span>
+                          </span>
+                        )}
+                        <span className="text-sm sm:text-xs font-black text-[#006bac] bg-[#f0f9ff] px-3.5 py-1.5 sm:px-3 sm:py-1 rounded-full border border-[#bae6fd] shrink-0 flex items-center gap-1.5 shadow-2xs group-hover:border-[#7dd3fc] group-hover:bg-[#e0f2fe] transition-colors">
+                          <Users className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#0085D0]" />
+                          <span>{docCount} {docCount === 1 ? 'Doctor' : 'Doctors'}</span>
+                        </span>
+                      </div>
                     </div>
 
                     {/* Description */}
@@ -822,69 +1090,149 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
         )}
       </div>
 
-      {/* ---------------- ALL-IN-ONE BOOKING MODAL ---------------- */}
-      {isModalOpen && currentClinic && (
-        <div className="fixed inset-0 z-50 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+      {/* ---------------- ALL-IN-ONE BOOKING MODAL (PORTALED TO ROOT BODY) ---------------- */}
+      {isModalOpen && currentClinic && mounted && createPortal(
+        <div
+          onClick={handleCloseModal}
+          className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
+        >
           <div
-            className={`bg-white rounded-3xl shadow-2xl border border-slate-100 w-full overflow-hidden my-auto transition-all duration-300 flex flex-col ${modalStep === 3 ? 'max-w-4xl' : modalStep === 4 ? 'max-w-xl' : 'max-w-2xl'
-              }`}
+            onClick={(e) => e.stopPropagation()}
+            className={`bg-white rounded-3xl shadow-2xl border border-slate-100 w-full overflow-hidden my-auto max-h-[85vh] transition-all duration-300 flex flex-col animate-scale-pop ${
+              modalStep === 3 ? 'max-w-3xl' : modalStep === 4 ? 'max-w-md' : 'max-w-xl'
+            }`}
           >
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 text-white relative shrink-0">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-[#053b61] to-[#005488] text-white relative shrink-0 border-b border-white/10">
+              {/* Close Button */}
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="absolute top-4 right-4 text-slate-400 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
+                className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all cursor-pointer backdrop-blur-xs active:scale-95 z-10"
                 title="Close modal"
               >
                 <X className="w-4 h-4" />
               </button>
 
-              <div className="flex items-center gap-2.5 mb-1.5 pr-10">
-                <span className="px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 truncate">
+              {/* 4 Segmented Progress Bars (as shown in reference design) */}
+              <div className="grid grid-cols-4 gap-2 mb-2.5 pr-8">
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    modalStep >= 1
+                      ? 'bg-[#38bdf8] shadow-sm shadow-[#38bdf8]/50'
+                      : 'bg-white/20'
+                  }`}
+                />
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    modalStep >= 2
+                      ? 'bg-[#38bdf8] shadow-sm shadow-[#38bdf8]/50'
+                      : 'bg-white/20'
+                  }`}
+                />
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    modalStep >= 3
+                      ? 'bg-[#38bdf8] shadow-sm shadow-[#38bdf8]/50'
+                      : 'bg-white/20'
+                  }`}
+                />
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    modalStep >= 4
+                      ? 'bg-[#38bdf8] shadow-sm shadow-[#38bdf8]/50'
+                      : 'bg-white/20'
+                  }`}
+                />
+              </div>
+
+              {/* Clinic Badge & Step Counter */}
+              <div className="flex items-center gap-2 mb-1.5 pr-10">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md text-sky-200 border border-white/20 text-[11px] font-bold shadow-2xs truncate">
                   {getClinicIcon(currentClinic.icon_name || currentClinic.name)}
                   <span>{currentClinic.name} Clinic</span>
                 </span>
-                <span className="text-[10px] text-slate-400 font-semibold">
+                <span className="text-[10px] text-sky-200/90 font-bold bg-white/10 px-2 py-0.5 rounded-full">
                   Step {modalStep} of 4
                 </span>
               </div>
 
-              <h3 className="text-base sm:text-lg font-black text-white tracking-tight">
-                {modalStep === 1 && 'Patient Particulars & Payment Category'}
+              {/* Step Title & Subtitle */}
+              <h3 className="text-base sm:text-lg font-black text-white tracking-tight leading-snug">
+                {modalStep === 1 && 'Patient Particulars & Billing Category'}
                 {modalStep === 2 && `Choose Consulting Specialist in ${currentClinic.name}`}
-                {modalStep === 3 && `Consultation Schedule & Confirm Booking`}
+                {modalStep === 3 && 'Consultation Schedule & Confirm Booking'}
                 {modalStep === 4 && 'Appointment Confirmed & Ticket Voucher'}
               </h3>
-              <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5">
-                {modalStep === 1 && 'Provide patient details and choose Private Self-Pay or HMO to filter specialists.'}
-                {modalStep === 2 && `Showing doctors authorized for ${billingFilter === 'HMO' ? 'HMO Insurance' : 'Private Self-Pay'} consultations.`}
+              <p className="text-[11px] sm:text-xs text-sky-100/80 mt-0.5 max-w-xl leading-relaxed">
+                {modalStep === 1 && 'Provide patient information and select Private Self-Pay or HMO to filter qualified specialists.'}
+                {modalStep === 2 && `Showing verified doctors attending to ${billingFilter === 'HMO' ? 'HMO Insurance' : 'Private Self-Pay'} consultations.`}
                 {modalStep === 3 && 'Pick an active consultation day on the calendar to book your appointment.'}
-                {modalStep === 4 && 'Your appointment has been booked. You can print or share your official slip.'}
+                {modalStep === 4 && 'Your appointment has been reserved. You can download, print, or share your official slip.'}
               </p>
 
-              {/* Progress Steps Indicators */}
-              <div className="grid grid-cols-4 gap-1.5 mt-3 pt-2.5 border-t border-white/10">
-                <div className={`h-1.5 rounded-full transition-colors ${modalStep >= 1 ? 'bg-teal-400' : 'bg-white/20'}`} />
-                <div className={`h-1.5 rounded-full transition-colors ${modalStep >= 2 ? 'bg-teal-400' : 'bg-white/20'}`} />
-                <div className={`h-1.5 rounded-full transition-colors ${modalStep >= 3 ? 'bg-teal-400' : 'bg-white/20'}`} />
-                <div className={`h-1.5 rounded-full transition-colors ${modalStep >= 4 ? 'bg-teal-400' : 'bg-white/20'}`} />
+              {/* Connected Stepper with Visual Milestones */}
+              <div className="flex items-center justify-between gap-1.5 sm:gap-2 mt-3 pt-2.5 border-t border-white/15">
+                {[
+                  { step: 1, label: 'Patient Info', icon: User },
+                  { step: 2, label: 'Select Doctor', icon: Stethoscope },
+                  { step: 3, label: 'Date & Slot', icon: Calendar },
+                  { step: 4, label: 'Ticket Voucher', icon: CheckCircle2 },
+                ].map((s, idx, arr) => {
+                  const isCompleted = modalStep > s.step;
+                  const isCurrent = modalStep === s.step;
+                  return (
+                    <React.Fragment key={s.step}>
+                      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        <div
+                          className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black transition-all ${
+                            isCompleted
+                              ? 'bg-emerald-400 text-slate-950 shadow-sm font-extrabold'
+                              : isCurrent
+                              ? 'bg-[#38bdf8] text-slate-950 ring-2 ring-white/50 font-black shadow-md'
+                              : 'bg-white/15 text-slate-400 font-bold'
+                          }`}
+                        >
+                          {isCompleted ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : s.step}
+                        </div>
+                        <span
+                          className={`hidden sm:inline text-[11px] font-bold transition-colors ${
+                            isCurrent
+                              ? 'text-white font-extrabold'
+                              : isCompleted
+                              ? 'text-sky-200'
+                              : 'text-slate-400'
+                          }`}
+                        >
+                          {s.label}
+                        </span>
+                      </div>
+                      {idx < arr.length - 1 && (
+                        <div
+                          className={`flex-1 h-0.5 rounded-full transition-colors ${
+                            modalStep > s.step ? 'bg-emerald-400/90' : 'bg-white/20'
+                          }`}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
 
             {/* Modal Body with Scrollable Area */}
-            <div ref={modalScrollRef} className="p-4 sm:p-6 overflow-y-auto max-h-[75vh]">
+            <div ref={modalScrollRef} className="p-4 sm:p-5 overflow-y-auto max-h-[calc(90vh-140px)]">
               {errorMessage && (
-                <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-in fade-in">
+                <div className="mb-3.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-slide-up">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
                   <div className="flex-1">
                     <p className="font-bold text-rose-900">Appointment Notice</p>
                     <p className="text-xs text-rose-700 mt-0.5">{errorMessage}</p>
                     {duplicateRef && (
-                      <div className="mt-2 pt-2 border-t border-rose-200/80">
+                      <div className="mt-2 pt-1.5 border-t border-rose-200/80">
                         <a
                           href={`/check-status?ref=${encodeURIComponent(duplicateRef)}`}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors shadow-sm"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors shadow-sm"
                         >
                           <FileText className="w-3.5 h-3.5" />
                           View Existing Appointment Voucher ({duplicateRef})
@@ -899,180 +1247,229 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
               {modalStep === 1 && (
                 <form onSubmit={handleIntakeSubmit} className="space-y-4">
                   {modalError && (
-                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                    <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5 animate-slide-up">
                       <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>{modalError}</span>
+                      <span className="font-semibold">{modalError}</span>
                     </div>
                   )}
 
-                  {/* Billing Category Selector (Private vs HMO) */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-800 block">
-                      Select Patient Billing Category <span className="text-rose-500">*</span>
+                  {/* Billing Category Selector (Matching Reference Screenshot) */}
+                  <div className="space-y-2.5">
+                    <label className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1">
+                      Select Patient Billing Category <span className="text-rose-500 font-bold">*</span>
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <button
-                        type="button"
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Private Self-Pay */}
+                      <div
                         onClick={() => setPaymentType('Private Self-Pay')}
-                        className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1 cursor-pointer ${paymentType === 'Private Self-Pay'
-                          ? 'border-emerald-600 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
+                        className={`p-3.5 sm:p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer flex flex-col justify-between gap-2.5 relative overflow-hidden group ${
+                          paymentType === 'Private Self-Pay'
+                            ? 'border-emerald-500 bg-emerald-50/20 shadow-xs'
+                            : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/60'
+                        }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${paymentType === 'Private Self-Pay' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
-                            }`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                              paymentType === 'Private Self-Pay'
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80'
+                            }`}
+                          >
                             <CreditCard className="w-4 h-4" />
                           </div>
+
                           {paymentType === 'Private Self-Pay' && (
-                            <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-700 text-white shadow-2xs">
                               Selected
                             </span>
                           )}
                         </div>
-                        <div className="mt-1">
-                          <p className="text-xs font-black text-slate-900">Private Self-Pay</p>
-                          {/* <p className="text-[11px] text-slate-500">Loads doctors attending to private patients</p> */}
-                          <p className="text-[11px] text-slate-500">Proceed to select doctor and book your appointment</p>
-                        </div>
-                      </button>
 
-                      <button
-                        type="button"
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900">Private Self-Pay</h4>
+                          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 leading-relaxed">
+                            Proceed to select doctor and book your appointment
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* HMO Health Insurance */}
+                      <div
                         onClick={() => setPaymentType('HMO Insurance')}
-                        className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1 cursor-pointer ${paymentType === 'HMO Insurance'
-                          ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-2 ring-blue-500/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
+                        className={`p-3.5 sm:p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer flex flex-col justify-between gap-2.5 relative overflow-hidden group ${
+                          paymentType === 'HMO Insurance'
+                            ? 'border-[#0082cd] bg-sky-50/20 shadow-xs'
+                            : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/60'
+                        }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${paymentType === 'HMO Insurance' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
-                            }`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                              paymentType === 'HMO Insurance'
+                                ? 'bg-[#0082cd] text-white shadow-sm'
+                                : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80'
+                            }`}
+                          >
                             <ShieldCheck className="w-4 h-4" />
                           </div>
+
                           {paymentType === 'HMO Insurance' && (
-                            <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#0082cd] text-white shadow-2xs">
                               Selected
                             </span>
                           )}
                         </div>
-                        <div className="mt-1">
-                          <p className="text-xs font-black text-slate-900">HMO Insurance</p>
-                          <p className="text-[11px] text-slate-500">Proceed to select doctor and book your appointment</p>
+
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900">HMO Insurance</h4>
+                          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 leading-relaxed">
+                            Proceed to select doctor and book your appointment
+                          </p>
                         </div>
-                      </button>
+                      </div>
                     </div>
                   </div>
 
                   {/* Conditional HMO fields */}
                   {paymentType === 'HMO Insurance' && (
-                    <div className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200/80 space-y-3 animate-in fade-in duration-150">
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-700">
-                          Select HMO Provider <span className="text-rose-500">*</span>
-                        </label>
-                        <select
-                          value={selectedHmoId}
-                          onChange={(e) => setSelectedHmoId(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-blue-200 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                        >
-                          <option value="">Choose HMO Company...</option>
-                          {hmos.map((h) => (
-                            <option key={h.id} value={h.id}>
-                              {h.name} ({h.policy_code || h.code})
-                            </option>
-                          ))}
-                        </select>
+                    <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-sky-50/80 via-white to-sky-50/30 border border-sky-200 shadow-2xs space-y-3 animate-scale-pop">
+                      <div className="flex items-center gap-2 text-xs font-bold text-[#006bac]">
+                        <Building2 className="w-4 h-4 text-[#0082cd]" />
+                        <span>HMO Health Insurance Details</span>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-700">
-                          HMO Enrollee / Policy ID <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. HYG-1029485"
-                          value={hmoPolicyCode}
-                          onChange={(e) => setHmoPolicyCode(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl border border-blue-200 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                        />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-800">
+                            Select HMO Provider <span className="text-rose-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <select
+                              value={selectedHmoId}
+                              onChange={(e) => setSelectedHmoId(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 rounded-xl border border-sky-200 text-xs text-slate-800 bg-white focus:outline-none focus:ring-4 focus:ring-[#0082cd]/15 focus:border-[#0082cd] font-semibold transition-all"
+                            >
+                              <option value="">Choose HMO Company...</option>
+                              {hmos.map((h) => (
+                                <option key={h.id} value={h.id}>
+                                  {h.name} ({h.policy_code || h.code})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-800">
+                            HMO Enrollee / Policy ID <span className="text-rose-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <ShieldCheck className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                              type="text"
+                              placeholder="e.g. HYG-1029485"
+                              value={hmoPolicyCode}
+                              onChange={(e) => setHmoPolicyCode(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 rounded-xl border border-sky-200 text-xs text-slate-800 bg-white focus:outline-none focus:ring-4 focus:ring-[#0082cd]/15 focus:border-[#0082cd] font-mono font-bold transition-all placeholder:text-slate-400 placeholder:font-sans placeholder:font-normal"
+                            />
+                          </div>
+                        </div>
                       </div>
+                      <p className="text-[10px] text-slate-500">
+                        * Please bring your active HMO corporate ID card and a valid photo ID along for verification on your appointment date.
+                      </p>
                     </div>
                   )}
 
-                  {/* Patient Information Inputs */}
-                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                  {/* Patient Demographic Form Fields */}
+                  <div className="space-y-3 pt-1">
+                    {/* Patient Full Name */}
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700">
-                        Patient Full Name <span className="text-rose-500">*</span>
+                      <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1">
+                        Patient Full Name <span className="text-rose-500 font-bold">*</span>
                       </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Adewale Babatunde"
-                        value={patientName}
-                        onChange={(e) => setPatientName(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Adewale Babatunde"
+                          value={patientName}
+                          onChange={(e) => setPatientName(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/15 focus:border-[#0082cd] transition-all placeholder:text-slate-400 shadow-2xs"
+                        />
+                      </div>
                     </div>
 
+                    {/* Phone Number & Email Address */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-700">
-                          Phone Number <span className="text-rose-500">*</span>
+                        <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1">
+                          Phone Number <span className="text-rose-500 font-bold">*</span>
                         </label>
-                        <input
-                          type="tel"
-                          placeholder="e.g. 0803 123 4567"
-                          value={patientPhone}
-                          onChange={(e) => setPatientPhone(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                        />
+                        <div className="relative">
+                          <input
+                            type="tel"
+                            required
+                            placeholder="e.g. 0803 123 4567"
+                            value={patientPhone}
+                            onChange={(e) => setPatientPhone(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/15 focus:border-[#0082cd] transition-all placeholder:text-slate-400 shadow-2xs"
+                          />
+                        </div>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-700">
+                        <label className="text-xs sm:text-sm font-bold text-slate-800">
                           Email Address <span className="text-slate-400 font-normal">(Optional)</span>
                         </label>
-                        <input
-                          type="email"
-                          placeholder="patient@gmail.com"
-                          value={patientEmail}
-                          onChange={(e) => setPatientEmail(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                        />
+                        <div className="relative">
+                          <input
+                            type="email"
+                            placeholder="patient@gmail.com"
+                            value={patientEmail}
+                            onChange={(e) => setPatientEmail(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/15 focus:border-[#0082cd] transition-all placeholder:text-slate-400 shadow-2xs"
+                          />
+                        </div>
                       </div>
                     </div>
 
+                    {/* Reason for Visit / Symptoms */}
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700">
+                      <label className="text-xs sm:text-sm font-bold text-slate-800">
                         Reason for Visit / Symptoms <span className="text-slate-400 font-normal">(Optional)</span>
                       </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Regular medical follow-up, Eye check, Joint ache..."
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="e.g. Regular medical follow-up, Eye check, Joint ache..."
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/15 focus:border-[#0082cd] transition-all placeholder:text-slate-400 shadow-2xs"
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  {/* Actions */}
+                  {/* Modal Footer Actions */}
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
                     <button
                       type="button"
                       onClick={handleCloseModal}
-                      className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer active:scale-95"
                     >
                       Cancel
                     </button>
 
                     <button
                       type="submit"
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#0085D0] hover:bg-[#006bac] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#0085D0]/20 transition-all cursor-pointer"
+                      className="group flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0082cd] via-[#006bac] to-[#005488] hover:from-[#0073b6] hover:to-[#004875] text-white font-extrabold text-xs sm:text-sm shadow-md hover:shadow-lg shadow-[#0082cd]/25 transition-all active:scale-98 cursor-pointer"
                     >
-                      <span>Proceed to Select Doctor for Appointment</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <span>Proceed to Select Doctor</span>
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </button>
                   </div>
                 </form>
@@ -1082,19 +1479,22 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
               {modalStep === 2 && (
                 <div className="space-y-4">
                   {/* Patient Summary Header Pill */}
-                  <div className="bg-slate-50 border border-slate-200/80 p-3 rounded-2xl flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
-                        <User className="w-3.5 h-3.5" />
+                  <div className="bg-gradient-to-r from-sky-50/90 via-white to-sky-50/50 border border-sky-200/80 p-3.5 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-2xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-[#0082cd] text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <User className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-bold text-slate-900 truncate">
+                        <p className="font-extrabold text-slate-900 truncate">
                           {patientName} <span className="font-normal text-slate-500">({patientPhone})</span>
                         </p>
-                        <p className="text-[11px] text-slate-500 truncate">
-                          {paymentType === 'HMO Insurance'
-                            ? `HMO Insurance (${selectedHmoName || 'Provider'} - ${hmoPolicyCode})`
-                            : 'Private Self-Pay'}
+                        <p className="text-[11px] text-slate-600 truncate flex items-center gap-1.5 mt-0.5">
+                          <span className={`w-2 h-2 rounded-full ${paymentType === 'HMO Insurance' ? 'bg-[#0082cd]' : 'bg-emerald-500'}`} />
+                          <span className="font-bold text-slate-800">
+                            {paymentType === 'HMO Insurance'
+                              ? `HMO Insurance (${selectedHmoName || 'Provider'} - ${hmoPolicyCode})`
+                              : 'Private Self-Pay'}
+                          </span>
                         </p>
                       </div>
                     </div>
@@ -1102,7 +1502,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                     <button
                       type="button"
                       onClick={() => setModalStep(1)}
-                      className="text-[11px] font-bold text-teal-700 hover:text-teal-800 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 shrink-0 cursor-pointer"
+                      className="text-xs font-bold text-[#006bac] hover:text-[#005488] px-3 py-1.5 rounded-xl border border-sky-200 bg-white hover:bg-sky-50 shrink-0 cursor-pointer shadow-2xs transition-colors"
                     >
                       Edit Info
                     </button>
@@ -1111,31 +1511,32 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                   {/* Guidance notice */}
                   <div className="text-[11px] text-slate-600 px-1 font-medium flex items-center justify-between gap-1.5">
                     <span className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${billingFilter === 'HMO' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
+                      <span className={`w-2 h-2 rounded-full ${billingFilter === 'HMO' ? 'bg-[#0082cd]' : 'bg-emerald-500'}`} />
                       <span>
                         {billingFilter === 'HMO'
-                          ? `Showing specialists in ${currentClinic.name} who attend to HMO Insurance patients.`
-                          : `Showing specialists in ${currentClinic.name} who attend to Private Self-Pay patients.`}
+                          ? `Specialists in ${currentClinic.name} attending to HMO Insurance patients.`
+                          : `Specialists in ${currentClinic.name} attending to Private Self-Pay patients.`}
                       </span>
                     </span>
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                      {filteredClinicDoctors.length} {filteredClinicDoctors.length === 1 ? 'Doctor' : 'Doctors'}
+                    <span className="text-[10px] font-extrabold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
+                      {filteredClinicDoctors.length} {filteredClinicDoctors.length === 1 ? 'Specialist' : 'Specialists'}
                     </span>
                   </div>
 
                   {/* Doctors List */}
                   {filteredClinicDoctors.length === 0 ? (
-                    <div className="py-10 text-center text-slate-500 p-6 rounded-2xl border border-dashed border-slate-200 space-y-2 bg-slate-50/50">
-                      <Users className="w-8 h-8 text-slate-300 mx-auto" />
-                      <p className="font-bold text-slate-700 text-xs sm:text-sm">
-                        No doctors currently attend to {billingFilter === 'HMO' ? 'HMO Insurance' : 'Private Self-Pay'} in {currentClinic.name}.
+                    <div className="py-12 text-center text-slate-500 p-6 rounded-2xl border-2 border-dashed border-slate-200 space-y-3 bg-slate-50/50">
+                      <Users className="w-10 h-10 text-slate-300 mx-auto" />
+                      <p className="font-bold text-slate-700 text-sm">
+                        No specialists currently attend to {billingFilter === 'HMO' ? 'HMO Insurance' : 'Private Self-Pay'} in {currentClinic.name}.
                       </p>
                       <button
                         type="button"
                         onClick={() => setModalStep(1)}
-                        className="text-xs text-teal-600 font-bold hover:underline cursor-pointer"
+                        className="inline-flex items-center gap-1 text-xs text-[#0082cd] font-bold hover:underline cursor-pointer"
                       >
-                        Change Payment Category
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <span>Change Billing Category</span>
                       </button>
                     </div>
                   ) : (
@@ -1148,36 +1549,36 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                         return (
                           <div
                             key={doc.id}
-                            className="p-3.5 sm:p-4 rounded-2xl border border-slate-200 bg-white hover:border-teal-500/50 hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                            className="p-4 sm:p-5 rounded-2xl border-2 border-slate-200/90 bg-white hover:border-[#0082cd] hover:shadow-md hover:shadow-[#0082cd]/10 transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
                           >
                             <div className="space-y-2 min-w-0">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center font-black text-xs shrink-0">
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0082cd] to-[#005488] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm shadow-[#0082cd]/20">
                                   {getDoctorInitials(doc)}
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-bold text-slate-900 text-sm truncate">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h4 className="font-extrabold text-slate-900 text-sm sm:text-base truncate group-hover:text-[#0082cd] transition-colors">
                                       {getDoctorInitialName(doc)}
                                     </h4>
-                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${billing.badgeClass}`}>
+                                    <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${billing.badgeClass}`}>
                                       {billing.label}
                                     </span>
                                   </div>
-                                  <p className="text-xs text-teal-700 font-medium truncate">
+                                  <p className="text-xs text-[#006bac] font-medium truncate mt-0.5">
                                     {doc.qualification || doc.qualifications || doc.specialty || 'Specialist Consultant'}
                                   </p>
                                 </div>
                               </div>
 
                               {/* Consultation Days & Shift */}
-                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                                <span className="inline-flex items-center gap-1 font-medium text-[11px] bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200/80">
-                                  <Calendar className="w-3 h-3 text-teal-600" />
-                                  <span>{dutyDaysWithCap.map(d => d.day).join(', ')}</span>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 pt-1">
+                                <span className="inline-flex items-center gap-1 font-semibold text-[11px] bg-slate-50 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200/80">
+                                  <Calendar className="w-3.5 h-3.5 text-[#0082cd]" />
+                                  <span>{dutyDaysWithCap.map((d) => d.day).join(', ')}</span>
                                 </span>
-                                <span className="inline-flex items-center gap-1 font-mono text-[11px] bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200/80">
-                                  <Clock className="w-3 h-3 text-slate-400" />
+                                <span className="inline-flex items-center gap-1 font-mono text-[11px] bg-slate-50 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200/80">
+                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
                                   <span>{shiftTime}</span>
                                 </span>
                               </div>
@@ -1193,7 +1594,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                                 setAvailability(null);
                                 setModalStep(3); // Proceed to Calendar step inside modal
                               }}
-                              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm shadow-teal-600/20 transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0082cd] to-[#005488] hover:from-[#0073b6] hover:to-[#004875] text-white font-extrabold text-xs shadow-md shadow-[#0082cd]/20 hover:shadow-lg transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
                             >
                               <span>Select & View Calendar</span>
                               <ArrowRight className="w-3.5 h-3.5" />
@@ -1205,7 +1606,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                   )}
 
                   {/* Back button */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => setModalStep(1)}
@@ -1222,16 +1623,16 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
               {modalStep === 3 && selectedDoctor && (
                 <div className="space-y-4">
                   {/* Doctor Profile Banner */}
-                  <div className="p-3.5 rounded-2xl bg-teal-50/70 border border-teal-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 via-white to-sky-50/50 border border-sky-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0082cd] to-[#005488] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
                         {getDoctorInitials(selectedDoctor)}
                       </div>
                       <div>
                         <h4 className="font-extrabold text-slate-900 text-sm">
                           {getDoctorInitialName(selectedDoctor)}
                         </h4>
-                        <p className="text-[11px] text-teal-800 font-medium">
+                        <p className="text-[11px] text-[#006bac] font-medium mt-0.5">
                           {currentClinic.name} • {getDoctorShiftTime(selectedDoctor)}
                         </p>
                       </div>
@@ -1240,26 +1641,26 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                     <button
                       type="button"
                       onClick={() => setModalStep(2)}
-                      className="text-[11px] font-bold text-teal-700 hover:underline shrink-0 self-start sm:self-auto cursor-pointer"
+                      className="text-xs font-bold text-[#0082cd] hover:underline shrink-0 self-start sm:self-auto cursor-pointer"
                     >
                       Change Doctor
                     </button>
                   </div>
 
                   {/* Calendar & Shift Details Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
                     {/* Left Column: Interactive Month Calendar */}
                     <div className="md:col-span-7 space-y-2">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-bold text-slate-800">
                           Select Consultation Date
                         </label>
-                        <span className="text-[11px] text-teal-700 font-semibold">
+                        <span className="text-[11px] text-[#0082cd] font-semibold">
                           Highlighted dates are active duty days
                         </span>
                       </div>
 
-                      <div className="bg-slate-50/60 p-3 rounded-2xl border border-slate-200">
+                      <div className="bg-slate-50/70 p-3 rounded-2xl border border-slate-200">
                         <SpecialistDatePicker
                           selectedDate={selectedDate}
                           onSelectDate={(dateStr: string) => {
@@ -1269,7 +1670,43 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                           availableDays={selectedDoctor.available_days || []}
                           doctorName={getDoctorInitialName(selectedDoctor)}
                           fullyBookedDates={selectedDoctor.fully_booked_dates || []}
-                          closedDates={selectedDoctor.closed_dates || []}
+                          closedDates={(() => {
+                            const baseClosed = selectedDoctor.closed_dates || [];
+                            const now = new Date();
+                            const todayDayShort = now.toLocaleDateString('en-US', { weekday: 'short' });
+                            const todayDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                            const nowMin = now.getHours() * 60 + now.getMinutes();
+
+                            // Check if today's shift has already ended for this doctor
+                            const shifts: string[] = [];
+                            if (selectedDoctor.schedules && selectedDoctor.schedules.length > 0) {
+                              selectedDoctor.schedules.forEach((s) => {
+                                if (!s.status) return;
+                                const d = (s.day_of_week || '').toLowerCase();
+                                if (d.includes(todayDayShort.toLowerCase()) || todayDayShort.toLowerCase().includes(d)) {
+                                  if (s.end_time) shifts.push(s.end_time);
+                                  else if (s.shift_time || s.formatted_shift) shifts.push(s.shift_time || s.formatted_shift || '');
+                                }
+                              });
+                            }
+                            if (shifts.length === 0 && (selectedDoctor.shift_time || selectedDoctor.formatted_shift)) {
+                              shifts.push(selectedDoctor.shift_time || selectedDoctor.formatted_shift || '');
+                            }
+
+                            if (shifts.length > 0) {
+                              let latestEnd: number | null = null;
+                              shifts.forEach((sh) => {
+                                const endMin = getLatestShiftEndMinutes(sh);
+                                if (endMin !== null && (latestEnd === null || endMin > latestEnd)) latestEnd = endMin;
+                              });
+                              if (latestEnd !== null && nowMin >= latestEnd) {
+                                if (!baseClosed.includes(todayDateStr)) {
+                                  return [...baseClosed, todayDateStr];
+                                }
+                              }
+                            }
+                            return baseClosed;
+                          })()}
                         />
                       </div>
                     </div>
@@ -1283,7 +1720,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
 
                         {checkingAvailability ? (
                           <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-center gap-2 text-slate-500 text-xs animate-pulse">
-                            <Clock className="w-4 h-4 animate-spin text-teal-600" />
+                            <Clock className="w-4 h-4 animate-spin text-[#0082cd]" />
                             <span>Checking specialist capacity...</span>
                           </div>
                         ) : selectedDate ? (
@@ -1309,45 +1746,52 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                             </div>
                           ) : availability && availability.is_available ? (
                             <div className="space-y-2.5">
-                              <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200/80 space-y-2">
-                                <div className="flex items-center justify-between text-xs text-teal-800 font-bold">
+                              <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50 via-white to-sky-50/30 border border-sky-200/90 space-y-2.5 shadow-2xs">
+                                <div className="flex items-center justify-between text-xs text-[#006bac] font-bold">
                                   <span>Selected Date:</span>
-                                  <span className="bg-white px-2 py-0.5 rounded-md border border-teal-200 font-mono">
+                                  <span className="bg-white px-2.5 py-0.5 rounded-md border border-sky-200 font-mono text-slate-900">
                                     {selectedDate}
                                   </span>
                                 </div>
                                 <div className="flex items-baseline gap-2">
-                                  <Clock className="w-4 h-4 text-teal-600 shrink-0 self-center" />
-                                  <h4 className="text-base font-black text-teal-950 tracking-tight">
+                                  <Clock className="w-4 h-4 text-[#0082cd] shrink-0 self-center" />
+                                  <h4 className="text-base font-black text-slate-900 tracking-tight">
                                     {availability.formatted_shift || selectedSlot || '08:00 AM – 02:00 PM'}
                                   </h4>
                                 </div>
-                                <div className="pt-2 border-t border-teal-200/70 flex items-center justify-between text-xs">
+                                <div className="pt-2 border-t border-sky-100 flex items-center justify-between text-xs">
                                   <span className="text-slate-600 font-medium">Daily Capacity:</span>
-                                  <span className="font-bold text-teal-900 bg-white px-2 py-0.5 rounded-md border border-teal-200 text-[11px]">
+                                  <span className="font-extrabold text-[#006bac] bg-white px-2.5 py-0.5 rounded-md border border-sky-200 text-[11px]">
                                     {availability.booked_count ?? (availability.daily_capacity - availability.remaining_slots)} of {availability.daily_capacity} Booked ({availability.remaining_slots} slots left)
                                   </span>
                                 </div>
                               </div>
 
                               {/* Patient Summary Confirmation Box */}
-                              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
                                 <div className="flex items-center justify-between">
-                                  <span className="font-bold text-slate-800 flex items-center gap-1 text-[11px]">
-                                    <User className="w-3 h-3 text-teal-600" />
+                                  <span className="font-bold text-slate-800 flex items-center gap-1.5 text-[11px]">
+                                    <User className="w-3.5 h-3.5 text-[#0082cd]" />
                                     <span>Patient Particulars:</span>
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => setModalStep(1)}
-                                    className="text-[10px] font-bold text-teal-700 hover:underline cursor-pointer"
+                                    className="text-[10px] font-bold text-[#0082cd] hover:underline cursor-pointer"
                                   >
                                     Edit
                                   </button>
                                 </div>
-                                <p className="text-[11px] text-slate-700"><strong className="text-slate-900">{patientName}</strong> • {patientPhone}</p>
+                                <p className="text-[11px] text-slate-700">
+                                  <strong className="text-slate-900">{patientName}</strong> • {patientPhone}
+                                </p>
                                 <p className="text-[11px] text-slate-600">
-                                  Billing: <span className="font-semibold text-slate-800">{paymentType === 'HMO Insurance' ? `HMO (${selectedHmoName || 'Provider'})` : 'Private Self-Pay'}</span>
+                                  Billing:{' '}
+                                  <span className="font-semibold text-slate-800">
+                                    {paymentType === 'HMO Insurance'
+                                      ? `HMO (${selectedHmoName || 'Provider'})`
+                                      : 'Private Self-Pay'}
+                                  </span>
                                 </p>
                               </div>
                             </div>
@@ -1374,19 +1818,34 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                         <button
                           type="button"
                           onClick={() => setModalStep(2)}
-                          className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+                          className="px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
                         >
                           Change Doctor
                         </button>
 
                         <button
                           type="button"
-                          disabled={!selectedDate || !selectedSlot || !availability?.is_available || availability?.is_fully_booked || availability?.is_booking_closed || availability?.remaining_slots <= 0 || submitting}
+                          disabled={
+                            !selectedDate ||
+                            !selectedSlot ||
+                            !availability?.is_available ||
+                            availability?.is_fully_booked ||
+                            availability?.is_booking_closed ||
+                            availability?.remaining_slots <= 0 ||
+                            submitting
+                          }
                           onClick={handleBookingSubmit}
-                          className={`inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${selectedDate && selectedSlot && availability?.is_available && !availability?.is_fully_booked && !availability?.is_booking_closed && availability?.remaining_slots > 0 && !submitting
-                            ? 'bg-teal-600 text-white hover:bg-teal-700 shadow-md shadow-teal-600/20 active:scale-95'
-                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                            }`}
+                          className={`inline-flex items-center justify-center gap-1.5 px-6 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                            selectedDate &&
+                            selectedSlot &&
+                            availability?.is_available &&
+                            !availability?.is_fully_booked &&
+                            !availability?.is_booking_closed &&
+                            availability?.remaining_slots > 0 &&
+                            !submitting
+                              ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md shadow-emerald-600/25 active:scale-95'
+                              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          }`}
                         >
                           {submitting ? (
                             <>
@@ -1412,23 +1871,23 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                   {/* Printable Ticket Voucher Card */}
                   <div
                     id="printable-ticket"
-                    className="bg-white rounded-2xl border border-slate-200 overflow-hidden text-left p-4 sm:p-6 space-y-4 shadow-sm"
+                    className="bg-white rounded-3xl border-2 border-slate-200 overflow-hidden text-left p-5 sm:p-6 space-y-4 shadow-sm"
                   >
                     {/* Header */}
-                    <div className="text-center pb-3 border-b border-dashed border-slate-200">
+                    <div className="text-center pb-3.5 border-b border-dashed border-slate-200">
                       <div className="flex justify-center mb-2">
                         <IsaluLogo variant="full" size="md" />
                       </div>
                       <p className="text-[10px] text-slate-500 font-medium">
                         No. 46, Ijaiye Road, Ogba, Ikeja, Lagos • Tel: +234 800 47258 2273
                       </p>
-                      <span className="inline-block mt-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider border border-emerald-200">
+                      <span className="inline-block mt-2 px-3.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider border border-emerald-200">
                         Appointment Confirmed
                       </span>
                     </div>
 
                     {/* Metadata Grid */}
-                    <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                       <div>
                         <span className="text-[9px] text-slate-400 font-bold uppercase block">Ticket Reference</span>
                         <span className="font-mono font-black text-slate-900 text-xs sm:text-sm tracking-wide">
@@ -1437,7 +1896,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 font-bold uppercase block">Clinical Status</span>
-                        <span className="font-mono font-bold text-teal-700 text-xs sm:text-sm">
+                        <span className="font-mono font-bold text-emerald-700 text-xs sm:text-sm">
                           {createdBooking.status || 'Confirmed'}
                         </span>
                       </div>
@@ -1457,7 +1916,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                     </div>
 
                     {/* Details List */}
-                    <div className="space-y-1.5 text-xs">
+                    <div className="space-y-2 text-xs">
                       <div className="flex justify-between py-1.5 border-b border-slate-100">
                         <span className="text-slate-500 text-[11px]">Patient Name:</span>
                         <span className="font-bold text-slate-900 text-[11px]">{createdBooking.patient_name}</span>
@@ -1468,31 +1927,31 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                       </div>
                       <div className="flex justify-between py-1.5 border-b border-slate-100">
                         <span className="text-slate-500 text-[11px]">Consultant:</span>
-                        <span className="font-semibold text-slate-900 text-[11px]">
+                        <span className="font-bold text-slate-900 text-[11px]">
                           {getDoctorInitialName(createdBooking.doctor_name || selectedDoctor)}
                         </span>
                       </div>
                       <div className="flex justify-between py-1.5 border-b border-slate-100">
                         <span className="text-slate-500 text-[11px]">Clinic Unit:</span>
-                        <span className="font-medium text-teal-700 text-[11px]">
+                        <span className="font-semibold text-[#006bac] text-[11px]">
                           {createdBooking.doctor_specialty || createdBooking.department?.name || currentClinic.name}
                         </span>
                       </div>
                       {createdBooking.hmo_policy_code && (
-                        <div className="flex justify-between py-1.5 border-b border-slate-100 bg-teal-50/60 px-2 rounded-lg">
-                          <span className="text-teal-800 font-semibold text-[11px]">HMO Policy ID:</span>
-                          <span className="font-mono font-bold text-teal-900 text-[11px]">{createdBooking.hmo_policy_code}</span>
+                        <div className="flex justify-between py-1.5 border-b border-slate-100 bg-sky-50/70 px-2.5 rounded-lg">
+                          <span className="text-[#005488] font-bold text-[11px]">HMO Policy ID:</span>
+                          <span className="font-mono font-black text-[#006bac] text-[11px]">{createdBooking.hmo_policy_code}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Barcode & Notice */}
-                    <div className="pt-1 text-center space-y-1">
-                      <div className="inline-block p-1.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="pt-1 text-center space-y-1.5">
+                      <div className="inline-block p-2 bg-slate-50 rounded-xl border border-slate-200">
                         <div className="flex items-center justify-center gap-1 tracking-widest font-mono text-base font-black text-slate-800">
                           ||| | |||| | || ||| || ||| ||||
                         </div>
-                        <span className="text-[9px] text-slate-400 font-mono block">
+                        <span className="text-[9px] text-slate-400 font-mono block mt-0.5">
                           Scan at Outpatient Triage Desk
                         </span>
                       </div>
@@ -1507,20 +1966,20 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                     <div className="flex items-center justify-between text-xs font-bold text-slate-700 px-1">
                       <span>Print or Share Voucher:</span>
                       {copiedTicket && (
-                        <span className="text-emerald-600 flex items-center gap-1 text-[11px] animate-in fade-in">
+                        <span className="text-emerald-600 flex items-center gap-1 text-[11px] animate-slide-up">
                           <Check className="w-3.5 h-3.5" /> Details copied!
                         </span>
                       )}
                     </div>
 
                     {/* 3 Main Action Buttons */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                       <button
                         type="button"
                         onClick={() => printElement('printable-ticket')}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
                       >
-                        <Printer className="w-4 h-4 text-teal-400" />
+                        <Printer className="w-4 h-4 text-sky-400" />
                         <span>Print Slip</span>
                       </button>
 
@@ -1528,7 +1987,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                         href={getWhatsAppShareUrl(createdBooking)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
                       >
                         <WhatsAppIcon className="w-4 h-4" />
                         <span>WhatsApp</span>
@@ -1536,7 +1995,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
 
                       <a
                         href={getEmailShareUrl(createdBooking)}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#0082cd] hover:bg-[#0073b6] text-white font-bold text-xs shadow-md shadow-[#0082cd]/20 transition-all active:scale-95 cursor-pointer"
                       >
                         <Mail className="w-4 h-4" />
                         <span>Email Slip</span>
@@ -1548,9 +2007,13 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                       <button
                         type="button"
                         onClick={() => handleShareOrCopy(createdBooking)}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
                       >
-                        {copiedTicket ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                        {copiedTicket ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-slate-500" />
+                        )}
                         <span>{copiedTicket ? 'Copied to Clipboard' : 'Copy Ticket Details'}</span>
                       </button>
 
@@ -1558,7 +2021,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                         <button
                           type="button"
                           onClick={handleBookAnother}
-                          className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-teal-700 hover:bg-teal-50 font-bold text-xs transition-colors cursor-pointer"
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[#0082cd] hover:bg-sky-50 font-bold text-xs transition-colors cursor-pointer"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                           <span>Book Another</span>
@@ -1570,7 +2033,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                             resetFormState();
                             setIsModalOpen(false);
                           }}
-                          className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors cursor-pointer"
+                          className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors cursor-pointer"
                         >
                           Done
                         </button>
@@ -1581,7 +2044,8 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

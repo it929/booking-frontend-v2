@@ -177,31 +177,32 @@ function DoctorsContent() {
     });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
       {/* Header */}
-      <div className="text-center max-w-2xl mx-auto mb-12 space-y-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-teal-600 bg-teal-50 px-3.5 py-1 rounded-full border border-teal-200">
-          Medical Directory
+      <div className="text-center max-w-3xl mx-auto space-y-3">
+        <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0082cd] bg-sky-50 px-3.5 py-1 rounded-full border border-sky-200 shadow-2xs">
+          <Sparkles className="w-3.5 h-3.5 text-[#0082cd]" />
+          <span>Consulting Medical Directory</span>
         </span>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-          Specialist Doctors & Consultants
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight">
+          Specialist Doctors & Medical Consultants
         </h1>
-        <p className="text-sm text-slate-500">
-          Isalu Hospitals features certified specialist consultants covering 25 comprehensive medical disciplines.
+        <p className="text-xs sm:text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
+          Isalu Hospitals features accredited specialist medical consultants covering 25 comprehensive clinical disciplines with real-time shift scheduling and quota allocation.
         </p>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-xs mb-10 space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+            <Search className="w-4 h-4 text-[#0082cd] absolute left-3.5 top-3.5" />
             <input
               type="text"
-              placeholder="Search by doctor name or specialty..."
+              placeholder="Search by doctor name or specialty (e.g. Cardiologist, O&G, Paediatrics)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0082cd]/20 focus:border-[#0082cd] bg-slate-50/50 focus:bg-white transition-all font-medium placeholder:text-slate-400"
             />
           </div>
 
@@ -210,20 +211,20 @@ function DoctorsContent() {
               setSelectedDeptId(null);
               setSearch('');
             }}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 shrink-0"
+            className="px-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 shrink-0 transition-colors cursor-pointer"
           >
             Reset Filters
           </button>
         </div>
 
         {/* Department Filters */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-1">
           <button
             onClick={() => setSelectedDeptId(null)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 shrink-0 cursor-pointer ${
               selectedDeptId === null
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-[#0082cd] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900'
             }`}
           >
             All Specialties ({doctors.length})
@@ -232,10 +233,10 @@ function DoctorsContent() {
             <button
               key={d.id}
               onClick={() => setSelectedDeptId(d.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 shrink-0 cursor-pointer ${
                 selectedDeptId === d.id
-                  ? 'bg-teal-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-[#0082cd] text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900'
               }`}
             >
               {d.name}
@@ -246,50 +247,55 @@ function DoctorsContent() {
 
       {/* Doctors Grid */}
       {loading ? (
-        <div className="py-20 text-center text-sm text-slate-500">Loading specialist directory...</div>
+        <div className="py-20 text-center text-xs text-slate-500 animate-pulse">Loading specialist directory...</div>
       ) : filteredDoctors.length === 0 ? (
-        <div className="py-20 text-center bg-white rounded-2xl border border-slate-200 p-8 space-y-3">
+        <div className="py-16 text-center bg-white rounded-3xl border border-dashed border-slate-200 p-8 space-y-3">
           <Stethoscope className="w-10 h-10 text-slate-300 mx-auto" />
-          <h3 className="font-bold text-slate-800 text-lg">No specialists found</h3>
-          <p className="text-xs text-slate-500">Try adjusting your search criteria or resetting department filters.</p>
+          <h3 className="font-black text-slate-800 text-base">No specialists found</h3>
+          <p className="text-xs text-slate-500">Try adjusting your search query or resetting department filters.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredDoctors.map((doc) => (
             <div
               key={doc.id}
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs hover:shadow-lg hover:border-teal-400 transition-all flex flex-col justify-between"
+              className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-xs hover-card-lift flex flex-col justify-between relative overflow-hidden group"
             >
-              <div>
-                <div className="flex items-start justify-between">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-500 text-white font-black text-base flex items-center justify-center shadow-md shadow-teal-500/20">
+              {/* Subtle top accent */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#0082cd] to-[#005B9C] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0082cd] to-[#38bdf8] text-white font-black text-base flex items-center justify-center shadow-md shadow-[#0082cd]/25 shrink-0">
                     {getDoctorInitials(doc)}
                   </div>
-                  <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-200">
+                  <span className="text-xs font-bold text-[#006bac] bg-sky-50 px-3 py-1 rounded-full border border-sky-200 truncate max-w-[170px] text-right">
                     {doc.department?.name || 'Consultant'}
                   </span>
                 </div>
 
-                <h3 className="text-lg font-bold text-slate-900 mt-4">{getDoctorInitialName(doc)}</h3>
-                <p className="text-xs font-semibold text-teal-600 mt-0.5">
-                  {doc.specialty || doc.department?.name || 'Specialist Consultant'}
-                </p>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 group-hover:text-[#0082cd] transition-colors">{getDoctorInitialName(doc)}</h3>
+                  <p className="text-xs font-bold text-[#0082cd] mt-0.5">
+                    {doc.specialty || doc.department?.name || 'Specialist Consultant'}
+                  </p>
+                </div>
 
-                <p className="text-xs text-slate-600 mt-3 leading-relaxed line-clamp-2">
+                <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
                   {doc.bio || 'Senior Clinical Consultant specializing in high quality clinical care at Isalu Hospitals.'}
                 </p>
 
-                <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 space-y-1.5">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-xs text-slate-600 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-teal-600" /> Duty Days:
+                    <span className="text-slate-400 flex items-center gap-1 font-medium">
+                      <Calendar className="w-3.5 h-3.5 text-[#0082cd]" /> Duty Days:
                     </span>
                     <div className="flex flex-wrap items-center justify-end gap-1.5">
                       {getDutyDaysWithCap(doc).map((item, dIdx) => (
                         <span key={dIdx} className="inline-flex items-center gap-1">
-                          <span className="font-semibold text-slate-800">{item.day}</span>
+                          <span className="font-bold text-slate-800 text-[11px]">{item.day}</span>
                           <span
-                            className="inline-flex items-center px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200"
+                            className="inline-flex items-center px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-sky-50 text-[#006bac] border border-sky-200"
                             title={`Daily Clinic Capacity: ${item.capacity} patients`}
                           >
                             Cap: {item.capacity}
@@ -298,44 +304,47 @@ function DoctorsContent() {
                       ))}
                     </div>
                   </div>
+
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-teal-600" /> Shift Time:
+                    <span className="text-slate-400 flex items-center gap-1 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-[#0082cd]" /> Shift Time:
                     </span>
-                    <span className="font-medium text-slate-700">
+                    <span className="font-mono font-bold text-slate-700 text-[11px]">
                       {getDoctorShiftTime(doc)}
                     </span>
                   </div>
+
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400 flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-teal-600" /> Patient Types:
+                    <span className="text-slate-400 flex items-center gap-1 font-medium">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#0082cd]" /> Billing Channels:
                     </span>
                     {(() => {
                       const billing = getDoctorBillingCategory(doc);
                       return (
-                        <span className={`text-[11px] px-2 py-0.5 rounded-md font-semibold ${billing.badgeClass}`}>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${billing.badgeClass}`}>
                           {billing.label}
                         </span>
                       );
                     })()}
                   </div>
+
                   {doc.next_schedule && (
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                      <span className="text-slate-500 flex items-center gap-1.5 text-xs font-medium">
+                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/70">
+                      <span className="text-slate-600 flex items-center gap-1.5 text-xs font-semibold">
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </span>
-                        <Calendar className="w-3.5 h-3.5 text-teal-600" /> Next Clinic:
+                        <span>Next Clinic:</span>
                       </span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-slate-800">{doc.next_schedule.formatted_date}</span>
+                        <span className="font-bold text-slate-900 text-[11px]">{doc.next_schedule.formatted_date}</span>
                         {doc.next_schedule.is_fully_booked ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200">
-                            Full ({doc.next_schedule.booked_count}/{doc.next_schedule.capacity})
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+                            Full
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             {doc.next_schedule.booked_count}/{doc.next_schedule.capacity} Booked
                           </span>
                         )}
@@ -345,15 +354,16 @@ function DoctorsContent() {
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-100">
-                  Active Consulting Roster
+              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-500">
+                  Duty Days Available
                 </span>
                 <Link
-                  href={`/?doctor_id=${doc.id}`}
-                  className="inline-flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold shadow-sm transition-all"
+                  href={`/?doctor_id=${doc.id}&dept=${doc.department_id || ''}`}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#0082cd] to-[#006bac] hover:from-[#0073b6] hover:to-[#005a91] text-white text-xs font-bold shadow-sm shadow-[#0082cd]/20 transition-all active:scale-95 cursor-pointer"
                 >
-                  Book Appointment <ArrowRight className="w-3.5 h-3.5" />
+                  <span>Book Consultation</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
             </div>

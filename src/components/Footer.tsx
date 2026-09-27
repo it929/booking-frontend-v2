@@ -37,19 +37,19 @@ export default function Footer() {
             <h4 className="text-white font-semibold text-sm tracking-wide uppercase">Patient Services</h4>
             <ul className="space-y-2 text-xs">
               <li>
-                <Link href="/" className="hover:text-teal-400 transition-colors">Book Specialist Consultation</Link>
+                <Link href="/" className="hover:text-[#38bdf8] transition-colors">Book Specialist Consultation</Link>
               </li>
               <li>
-                <Link href="/hmo" className="hover:text-teal-400 transition-colors">Check Available HMO Partners</Link>
+                <Link href="/hmo" className="hover:text-[#38bdf8] transition-colors">Check Available HMO Partners</Link>
               </li>
               <li>
-                <Link href="/doctors" className="hover:text-teal-400 transition-colors">Find a Doctor / Consultant</Link>
+                <Link href="/doctors" className="hover:text-[#38bdf8] transition-colors">Find a Doctor / Consultant</Link>
               </li>
               <li>
-                <Link href="/check-status" className="hover:text-teal-400 transition-colors">Track Ticket & Appointment Status</Link>
+                <Link href="/check-status" className="hover:text-[#38bdf8] transition-colors">Track Ticket & Appointment Status</Link>
               </li>
               <li>
-                <Link href="/doctors" className="hover:text-teal-400 transition-colors">Clinic Schedule & Duty Days</Link>
+                <Link href="/doctors" className="hover:text-[#38bdf8] transition-colors">Clinic Schedule & Duty Days</Link>
               </li>
             </ul>
           </div>
@@ -72,19 +72,19 @@ export default function Footer() {
             <h4 className="text-white font-semibold text-sm tracking-wide uppercase">Emergency & Location</h4>
             <div className="space-y-2.5 text-xs">
               <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                <MapPin className="w-4 h-4 text-[#38bdf8] shrink-0 mt-0.5" />
                 <span>No. 46, Ijaiye Road, Ogba, Ikeja, Lagos, Nigeria</span>
               </div>
               <div className="flex items-center gap-2.5">
-                <Phone className="w-4 h-4 text-teal-400 shrink-0" />
-                <span>Emergency: +234 800 47258 2273</span>
+                <Phone className="w-4 h-4 text-[#38bdf8] shrink-0" />
+                <span>Emergency: +234 706 3911 672</span>
               </div>
               <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-teal-400 shrink-0" />
+                <Mail className="w-4 h-4 text-[#38bdf8] shrink-0" />
                 <span>info@isaluhospitals.com</span>
               </div>
-              <div className="flex items-center gap-2.5 text-teal-300">
-                <Clock className="w-4 h-4 text-teal-400 shrink-0" />
+              <div className="flex items-center gap-2.5 text-sky-300">
+                <Clock className="w-4 h-4 text-[#38bdf8] shrink-0" />
                 <span>24 Hours Daily (Everyday)</span>
               </div>
             </div>
@@ -94,8 +94,6 @@ export default function Footer() {
         <div className="mt-12 pt-6 border-t border-slate-900 text-center text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p>© {new Date().getFullYear()} Isalu Hospitals. All rights reserved.</p>
           <div className="flex items-center gap-6 text-slate-400">
-            <Link href="/login" className="hover:text-teal-400 text-xs">Staff Login</Link>
-            <span>•</span>
             <span className="text-xs text-slate-500">Patient Confidentiality & GDPR/NDPR Protected</span>
           </div>
         </div>

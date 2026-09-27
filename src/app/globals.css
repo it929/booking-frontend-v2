@@ -7,13 +7,13 @@
   --isalu-blue: #0082cd;
   --isalu-blue-dark: #006bac;
   --isalu-blue-light: #38bdf8;
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
 
   /* Official Isalu Hospitals Brand Color System */
   --color-isalu-50: #f0f9ff;
@@ -45,7 +45,146 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Animation Keyframes */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scalePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  70% {
+    transform: scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Animation utilities */
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scale-pop {
+  animation: scalePop 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradientShift 6s ease infinite;
+}
+
+/* Smooth interactive transitions */
+.transition-smooth {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hover-card-lift {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
+}
+
+.hover-card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 30px -10px rgba(0, 130, 205, 0.15), 0 8px 16px -6px rgba(0, 0, 0, 0.04);
+}
+
+/* Glassmorphism helpers */
+.glass-surface {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.glass-surface-dark {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Custom modern scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 @media print {
@@ -63,13 +202,21 @@ body {
     visibility: hidden !important;
   }
 
-  /* Reveal only the ticket/receipt and its contents */
+  /* Reveal tickets, receipts, and manifests */
   #printable-ticket,
   #printable-ticket *,
   #printable-receipt,
   #printable-receipt *,
   #printable-reschedule-ticket,
-  #printable-reschedule-ticket * {
+  #printable-reschedule-ticket *,
+  #printable-today-manifest,
+  #printable-today-manifest *,
+  #printable-arrivals-manifest,
+  #printable-arrivals-manifest *,
+  #printable-completed-manifest,
+  #printable-completed-manifest *,
+  #printable-doctor-shift-manifest,
+  #printable-doctor-shift-manifest * {
     visibility: visible !important;
   }
 
@@ -94,12 +241,50 @@ body {
     zoom: 0.88;
   }
 
+  /* Full-width clinical manifests */
+  #printable-today-manifest,
+  #printable-arrivals-manifest,
+  #printable-completed-manifest,
+  #printable-doctor-shift-manifest {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    page-break-inside: auto !important;
+  }
+
+  #printable-today-manifest table,
+  #printable-arrivals-manifest table,
+  #printable-completed-manifest table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  #printable-today-manifest th,
+  #printable-today-manifest td,
+  #printable-arrivals-manifest th,
+  #printable-arrivals-manifest td,
+  #printable-completed-manifest th,
+  #printable-completed-manifest td {
+    border: 1px solid #94a3b8 !important;
+    padding: 6px 8px !important;
+  }
+
   /* Omit buttons and controls */
   button,
   .no-print,
   #printable-ticket button,
   #printable-receipt button,
-  #printable-reschedule-ticket button {
+  #printable-reschedule-ticket button,
+  #printable-today-manifest button,
+  #printable-arrivals-manifest button,
+  #printable-completed-manifest button {
     display: none !important;
     visibility: hidden !important;
   }
@@ -111,7 +296,7 @@ body {
   }
 
   @page {
-    margin: 12mm;
+    margin: 8mm 10mm;
     size: auto;
   }
 }

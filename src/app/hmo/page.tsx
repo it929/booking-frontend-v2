@@ -169,17 +169,17 @@ export default function CheckHmoPage() {
               {filteredHmos.map((hmo) => (
                 <div
                   key={hmo.id}
-                  className="p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-teal-500/60 hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                  className="p-5 rounded-3xl bg-white border border-slate-200/90 hover-card-lift flex flex-col justify-between space-y-4"
                 >
                   <div className="space-y-3">
                     {/* Header with name and accreditation badge */}
                     <div className="flex items-start justify-between gap-2.5">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                        <div className="w-10 h-10 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-[#0082cd] shrink-0">
                           <ShieldCheck className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
-                          <h3 className="text-base font-extrabold text-slate-900 truncate">
+                          <h3 className="text-base font-black text-slate-900 truncate">
                             {hmo.name}
                           </h3>
                           <p className="text-[11px] font-mono text-slate-400">
@@ -194,7 +194,7 @@ export default function CheckHmoPage() {
                     </div>
 
                     {/* Coverage Highlights */}
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1.5">
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-1.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                         Included Hospital Benefits
                       </span>
@@ -234,9 +234,9 @@ export default function CheckHmoPage() {
                   {/* Book Action */}
                   <Link
                     href="/"
-                    className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#0082cd] to-[#006bac] hover:from-[#0073b6] hover:to-[#005a91] text-white font-bold text-xs shadow-sm shadow-[#0082cd]/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
                   >
-                    <span>Book Specialist Consultation</span>
+                    <span>Book Consultation with this HMO</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>

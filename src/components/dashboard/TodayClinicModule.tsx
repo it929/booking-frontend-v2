@@ -43,6 +43,7 @@ import { Booking, Department, Doctor, StaffUser, getDoctorInitialName } from '@/
 import { printElement } from '@/lib/printUtils';
 import IsaluLogo from '@/components/IsaluLogo';
 import RescheduleModal from '@/components/RescheduleModal';
+import ReceiptModal from '@/components/dashboard/ReceiptModal';
 
 function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
@@ -64,6 +65,28 @@ function getClinicBadgeIcon(name?: string) {
   if (lower.includes('surg')) return <Activity className="w-3.5 h-3.5 text-[#006bac] shrink-0" />;
   if (lower.includes('general') || lower.includes('family')) return <Stethoscope className="w-3.5 h-3.5 text-[#0085D0] shrink-0" />;
   return <Building2 className="w-3.5 h-3.5 text-[#0085D0] shrink-0" />;
+}
+
+function getStatusBadgeInfo(bk: Booking) {
+  if (bk.status === 'Completed') {
+    return { label: 'Completed', className: 'bg-slate-100 text-slate-800 border-slate-300' };
+  }
+  if (bk.status === 'Cancelled') {
+    return { label: 'Cancelled', className: 'bg-rose-50 text-rose-800 border-rose-200' };
+  }
+  if (bk.status === 'HMO Approved' || bk.hmo_status === 'Approved') {
+    return { label: 'Clear by HMO Approval', className: 'bg-teal-50 text-teal-800 border-teal-200' };
+  }
+  if (bk.status === 'Payment Approved' || bk.payment_status === 'Paid') {
+    return { label: 'Payment Clear', className: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+  }
+  if (bk.status === 'In Consultation') {
+    return { label: 'In Consultation', className: 'bg-purple-50 text-purple-800 border-purple-200' };
+  }
+  if (bk.status === 'Checked In') {
+    return { label: 'Checked In', className: 'bg-teal-50 text-teal-800 border-teal-200' };
+  }
+  return { label: bk.status || 'Confirmed', className: 'bg-blue-50 text-blue-800 border-blue-200' };
 }
 
 interface TodayClinicModuleProps {
@@ -104,6 +127,7 @@ export default function TodayClinicModule({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [checkingInId, setCheckingInId] = useState<number | null>(null);
   const [rescheduleTargetBooking, setRescheduleTargetBooking] = useState<Booking | null>(null);
+  const [selectedReceiptBooking, setSelectedReceiptBooking] = useState<Booking | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
 
   // Load Reference Data if not passed from dashboard parent
@@ -238,7 +262,25 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
 
       // Status Filter
       if (selectedStatus !== 'ALL') {
-        if ((b.status || 'Confirmed').toLowerCase() !== selectedStatus.toLowerCase()) return false;
+        const isHmoCleared = b.status === 'HMO Approved' || b.hmo_status === 'Approved';
+        const isPaymentCleared = b.status === 'Payment Approved' || b.payment_status === 'Paid';
+
+        if (selectedStatus === 'Clear by hmo approval') {
+          if (!isHmoCleared) return false;
+        } else if (selectedStatus === 'Payment Clear') {
+          if (!isPaymentCleared) return false;
+        } else if (selectedStatus === 'Completed') {
+          if (b.status !== 'Completed') return false;
+        } else if (selectedStatus === 'Confirmed') {
+          if (b.status === 'Completed' || b.status === 'Cancelled' || isHmoCleared || isPaymentCleared) {
+            return false;
+          }
+          if (b.status && b.status !== 'Confirmed') {
+            return false;
+          }
+        } else {
+          if ((b.status || 'Confirmed').toLowerCase() !== selectedStatus.toLowerCase()) return false;
+        }
       }
 
       // Search Query Filter
@@ -379,10 +421,26 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
               <span className="hidden sm:inline">Refresh</span>
             </button>
 
+            {/* Specialist Postponed Session? Shift & Notify Link */}
+            <Link
+              href="/dashboard?submodule=specialist-session-shift"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/30 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+              title="Specialist called to postpone clinic date? Reassign patients and dispatch notices"
+            >
+              <CalendarClock className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden md:inline">Doctor Shifted Date?</span>
+            </Link>
+
             {/* Print Manifest Button */}
             <button
               type="button"
-              onClick={() => printElement('printable-today-manifest', `Isalu Hospitals - Clinical Manifest (${selectedDate})`)}
+              onClick={() =>
+                printElement('printable-today-manifest', `Isalu Hospitals - Clinical Manifest (${selectedDate})`, {
+                  fullWidth: true,
+                  landscape: true,
+                  margin: '6mm 8mm',
+                })
+              }
               className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#0085D0] hover:bg-[#006bac] text-white text-xs font-black shadow-md shadow-[#0085D0]/30 transition-all active:scale-95 cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -605,10 +663,9 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
             >
               <option value="ALL">All Clinical Statuses</option>
               <option value="Confirmed">Confirmed</option>
-              <option value="Checked In">Checked In</option>
-              <option value="In Consultation">In Consultation</option>
+              <option value="Clear by hmo approval">Clear by hmo approval</option>
+              <option value="Payment Clear">Payment Clear</option>
               <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
             </select>
           </div>
         </div>
@@ -701,17 +758,16 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
                   </div>
 
                   {/* Status Badge */}
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border shrink-0 ${
-                      isCheckedIn
-                        ? 'bg-teal-50 text-teal-800 border-teal-200'
-                        : bk.status === 'Cancelled'
-                        ? 'bg-rose-50 text-rose-800 border-rose-200'
-                        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                    }`}
-                  >
-                    {bk.status || 'Confirmed'}
-                  </span>
+                  {(() => {
+                    const badge = getStatusBadgeInfo(bk);
+                    return (
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border shrink-0 ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 {/* Patient Details */}
@@ -829,9 +885,9 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
 
                     <button
                       type="button"
-                      onClick={() => printElement('printable-today-manifest', `Ticket ${bk.reference_code}`)}
+                      onClick={() => setSelectedReceiptBooking(bk)}
                       className="p-2 rounded-xl bg-slate-900 hover:bg-black text-white transition-colors cursor-pointer"
-                      title="Print appointment voucher"
+                      title="Print patient intake / summary slip"
                     >
                       <Printer className="w-3.5 h-3.5 text-teal-400" />
                     </button>
@@ -915,15 +971,16 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
                         )}
                       </td>
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                            isCheckedIn
-                              ? 'bg-teal-50 text-teal-800 border-teal-200'
-                              : 'bg-slate-100 text-slate-700 border-slate-200'
-                          }`}
-                        >
-                          {bk.status || 'Confirmed'}
-                        </span>
+                        {(() => {
+                          const badge = getStatusBadgeInfo(bk);
+                          return (
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${badge.className}`}
+                            >
+                              {badge.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
@@ -956,6 +1013,15 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
                           >
                             <CalendarClock className="w-3.5 h-3.5" />
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReceiptBooking(bk)}
+                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-black text-white cursor-pointer"
+                            title="Print intake slip"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-teal-400" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -968,11 +1034,14 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
       )}
 
       {/* ---------------- PRINTABLE TODAY MANIFEST (HIDDEN ON SCREEN, USED BY PRINT ELEMENT) ---------------- */}
-      <div id="printable-today-manifest" className="hidden p-8 bg-white text-slate-900 space-y-6">
+      <div id="printable-today-manifest" className="hidden p-6 bg-white text-slate-900 space-y-4">
         {/* Hospital Header */}
-        <div className="text-center pb-4 border-b-2 border-slate-800 space-y-1">
+        <div className="text-center pb-4 border-b-2 border-slate-900 space-y-1.5">
           <div className="flex justify-center mb-2">
             <IsaluLogo variant="full" size="lg" />
+          </div>
+          <div className="inline-block px-2.5 py-0.5 rounded bg-sky-100 text-[#0085D0] font-black text-[11px] tracking-widest uppercase">
+            Official Clinical Manifest • RC: 502112
           </div>
           <h2 className="text-xl font-black uppercase tracking-wider text-slate-900">
             Outpatient Consultations Daily Manifest
@@ -980,61 +1049,84 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
           <p className="text-xs text-slate-600 font-medium">
             No. 46, Ijaiye Road, Ogba, Ikeja, Lagos • Tel: +234 800 47258 2273 • Emergency Desk: +234 1 295 6789
           </p>
-          <div className="pt-2 flex items-center justify-between text-xs font-bold border-t border-slate-200">
-            <span>Clinic Consultation Date: <strong>{formattedDateTitle}</strong></span>
-            <span>Total Patients Booked: <strong>{filteredBookings.length}</strong></span>
-            <span>Manifest Printed: <strong>{new Date().toLocaleString()}</strong></span>
+          <div className="pt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold border-t border-slate-200 text-slate-700 text-left">
+            <div>Clinic Session Date: <strong className="text-slate-900 block">{formattedDateTitle}</strong></div>
+            <div>Specialty Department: <strong className="text-slate-900 block">{selectedClinicId === 'ALL' ? 'All Specialty Clinics' : (departments.find(d => String(d.id) === selectedClinicId)?.name || selectedClinicId)}</strong></div>
+            <div>Total Patients Booked: <strong className="text-slate-900 block">{filteredBookings.length}</strong></div>
+            <div>Print Timestamp: <strong className="text-slate-900 block">{new Date().toLocaleString()}</strong></div>
           </div>
         </div>
 
         {/* Manifest Table */}
         <table className="w-full text-left border-collapse border border-slate-300 text-xs">
           <thead>
-            <tr className="bg-slate-100 text-slate-900 font-black uppercase text-[10px]">
+            <tr className="bg-slate-100 text-slate-900 font-black uppercase text-[10px] tracking-wider">
               <th className="border border-slate-300 p-2 text-center w-8">#</th>
-              <th className="border border-slate-300 p-2">Ticket Ref</th>
+              <th className="border border-slate-300 p-2 whitespace-nowrap">Ticket Ref</th>
               <th className="border border-slate-300 p-2">Patient Full Name</th>
-              <th className="border border-slate-300 p-2">Phone Number</th>
+              <th className="border border-slate-300 p-2 whitespace-nowrap">Phone Number</th>
               <th className="border border-slate-300 p-2">Specialty Clinic</th>
               <th className="border border-slate-300 p-2">Consultant Doctor</th>
-              <th className="border border-slate-300 p-2">Shift Window</th>
-              <th className="border border-slate-300 p-2">Billing Details</th>
-              <th className="border border-slate-300 p-2 text-center">Status</th>
-              <th className="border border-slate-300 p-2 text-center">Triage Checked</th>
+              <th className="border border-slate-300 p-2 whitespace-nowrap">Shift Window</th>
+              <th className="border border-slate-300 p-2">Billing / Coverage</th>
+              <th className="border border-slate-300 p-2 text-center whitespace-nowrap">Clinical Status</th>
+              <th className="border border-slate-300 p-2 text-center whitespace-nowrap">Triage Checked</th>
             </tr>
           </thead>
           <tbody>
-            {filteredBookings.map((bk, i) => (
-              <tr key={bk.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                <td className="border border-slate-300 p-2 text-center font-bold font-mono">{i + 1}</td>
-                <td className="border border-slate-300 p-2 font-mono font-black">{bk.reference_code}</td>
-                <td className="border border-slate-300 p-2 font-bold">{bk.patient_name}</td>
-                <td className="border border-slate-300 p-2 font-mono">{bk.patient_phone}</td>
-                <td className="border border-slate-300 p-2">{bk.doctor_specialty || bk.department?.name || 'OPD'}</td>
-                <td className="border border-slate-300 p-2 font-medium">{getDoctorInitialName(bk.doctor || bk.doctor_name)}</td>
-                <td className="border border-slate-300 p-2 font-mono">{bk.time || bk.appointment_time}</td>
-                <td className="border border-slate-300 p-2">
-                  {bk.payment_type === 'HMO Insurance' 
-                    ? `HMO: ${bk.hmo_name || 'Enrollee'} (${bk.hmo_policy_code || 'N/A'})` 
-                    : 'Private Self-Pay'}
+            {filteredBookings.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="border border-slate-300 py-10 px-4 text-center text-slate-500">
+                  <p className="font-bold text-sm text-slate-700 uppercase tracking-wide">No Patient Consultations Scheduled</p>
+                  <p className="text-xs text-slate-500 mt-1">There are no patient bookings matching date {formattedDateTitle} and the selected clinic filter.</p>
                 </td>
-                <td className="border border-slate-300 p-2 text-center font-bold">{bk.status || 'Confirmed'}</td>
-                <td className="border border-slate-300 p-2 text-center text-slate-300">[  ]</td>
               </tr>
-            ))}
+            ) : (
+              filteredBookings.map((bk, i) => (
+                <tr key={bk.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                  <td className="border border-slate-300 p-2 text-center font-bold font-mono text-[11px]">{i + 1}</td>
+                  <td className="border border-slate-300 p-2 font-mono font-black text-[11px] whitespace-nowrap">{bk.reference_code}</td>
+                  <td className="border border-slate-300 p-2 font-bold text-slate-900">{bk.patient_name}</td>
+                  <td className="border border-slate-300 p-2 font-mono text-[11px] whitespace-nowrap">{bk.patient_phone}</td>
+                  <td className="border border-slate-300 p-2 font-medium">{bk.doctor_specialty || bk.department?.name || 'OPD'}</td>
+                  <td className="border border-slate-300 p-2 font-medium">{getDoctorInitialName(bk.doctor || bk.doctor_name)}</td>
+                  <td className="border border-slate-300 p-2 font-mono text-[11px] whitespace-nowrap">{bk.time || bk.appointment_time}</td>
+                  <td className="border border-slate-300 p-2 text-[11px]">
+                    {bk.payment_type === 'HMO Insurance' 
+                      ? `HMO: ${bk.hmo_name || 'Enrollee'} (${bk.hmo_policy_code || 'N/A'})` 
+                      : 'Private Self-Pay'}
+                  </td>
+                  <td className="border border-slate-300 p-2 text-center font-bold whitespace-nowrap">
+                    <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded border border-slate-300 bg-slate-100">
+                      {bk.status || 'Confirmed'}
+                    </span>
+                  </td>
+                  <td className="border border-slate-300 p-2 text-center font-mono text-slate-400 text-sm whitespace-nowrap">[ &nbsp; ]</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
 
         {/* Footer Signature */}
-        <div className="pt-8 grid grid-cols-2 gap-8 text-xs">
+        <div className="pt-8 grid grid-cols-3 gap-6 text-xs print-footer-signatures">
           <div>
-            <div className="border-b border-slate-400 pb-1 mb-1 font-bold">Nursing Triage Supervisor Signature</div>
+            <div className="border-b border-slate-400 pb-1 mb-1 font-bold text-slate-900">Nursing Triage Supervisor</div>
             <p className="text-[10px] text-slate-500">Triage Assessment & Vital Signs Validation</p>
           </div>
           <div>
-            <div className="border-b border-slate-400 pb-1 mb-1 font-bold">Clinical Records / Front Desk Officer</div>
+            <div className="border-b border-slate-400 pb-1 mb-1 font-bold text-slate-900">Clinical Records / Front Desk</div>
             <p className="text-[10px] text-slate-500">Outpatient Queue Clearance & Handover</p>
           </div>
+          <div>
+            <div className="border-b border-slate-400 pb-1 mb-1 font-bold text-slate-900">Medical Director / Duty Consultant</div>
+            <p className="text-[10px] text-slate-500">Clinical Session Endorsement & Sign-Off</p>
+          </div>
+        </div>
+
+        {/* Confidentiality Notice */}
+        <div className="pt-4 border-t border-slate-200 text-center text-[10px] text-slate-400">
+          Isalu Hospitals Limited • Official Outpatient Clinical Session Record • Strictly Confidential
         </div>
       </div>
 
@@ -1051,6 +1143,14 @@ ${bk.hmo_policy_code ? `🆔 *HMO Policy ID:* ${bk.hmo_policy_code}\n` : ''}━�
             setRescheduleTargetBooking(null);
             if (onRefreshDashboard) onRefreshDashboard();
           }}
+        />
+      )}
+
+      {/* ---------------- RECEIPT / INTAKE SLIP MODAL ---------------- */}
+      {selectedReceiptBooking && (
+        <ReceiptModal
+          booking={selectedReceiptBooking}
+          onClose={() => setSelectedReceiptBooking(null)}
         />
       )}
     </div>

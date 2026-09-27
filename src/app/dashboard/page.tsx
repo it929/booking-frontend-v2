@@ -5,6 +5,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   getStoredUser,
+  getAuthToken,
+  setAuthSession,
+  getStaffProfile,
   clearAuthSession,
   getBookings,
   checkInBooking,
@@ -56,6 +59,7 @@ import EditHmoModal from '@/components/dashboard/EditHmoModal';
 import RescheduleModal from '@/components/RescheduleModal';
 import IsaluLogo from '@/components/IsaluLogo';
 import TodayClinicModule from '@/components/dashboard/TodayClinicModule';
+import DoctorShiftRescheduleModule from '@/components/dashboard/DoctorShiftRescheduleModule';
 import { printElement } from '@/lib/printUtils';
 import {
   UserCheck,
@@ -175,7 +179,10 @@ export default function DashboardPage() {
   const [selectedHmoProvider, setSelectedHmoProvider] = useState<string>('All');
   const [patientCategoryFilter, setPatientCategoryFilter] = useState<PatientBillingCategory>('All');
   const [queueFilter, setQueueFilter] = useState<'Active' | 'All'>('Active');
+  const [queueDateFilter, setQueueDateFilter] = useState<'Today' | 'All'>('Today');
   const [completedDateFilter, setCompletedDateFilter] = useState<'All' | 'Today' | 'Week' | 'Month'>('All');
+  const [hmoDateFilter, setHmoDateFilter] = useState<'Today' | 'All'>('Today');
+  const [financeDateFilter, setFinanceDateFilter] = useState<'Today' | 'All'>('Today');
 
   // Data Store
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -285,6 +292,17 @@ export default function DashboardPage() {
     }
     setCurrentUser(user);
 
+    // Sync live user profile dynamically from database to prevent stale session names
+    getStaffProfile()
+      .then((res) => {
+        if (res?.user) {
+          setCurrentUser(res.user);
+          const token = getAuthToken();
+          if (token) setAuthSession(token, res.user);
+        }
+      })
+      .catch(() => {});
+
     // Pick sensible initial landing screen based on role's assigned_modules from database
     const assigned = user.assigned_modules || user.role_data?.assigned_modules;
     if (assigned && Array.isArray(assigned) && assigned.length > 0) {
@@ -354,6 +372,7 @@ export default function DashboardPage() {
     // Submodule to Module map
     const submoduleModuleMap: Record<string, string> = {
       'today-clinics': 'clinical-triage',
+      'specialist-session-shift': 'clinical-triage',
       'triage-queue': 'clinical-triage',
       'triage-completed': 'clinical-triage',
       'triage-walkin': 'clinical-triage',
@@ -469,6 +488,17 @@ export default function DashboardPage() {
         setDepartments(deptsData);
         setHmoCompanies(hmosData);
         setStaffUsers(staffData);
+        if (staffData && Array.isArray(staffData)) {
+          const stored = getStoredUser();
+          if (stored) {
+            const liveUser = staffData.find((s: StaffUser) => s.id === stored.id || s.email === stored.email);
+            if (liveUser) {
+              setCurrentUser((prev) => (prev ? { ...prev, ...liveUser } : liveUser));
+              const token = getAuthToken();
+              if (token) setAuthSession(token, liveUser);
+            }
+          }
+        }
         setRoles(rolesData);
       } else {
         const [bookingsData, analyticsData] = await Promise.all([
@@ -549,11 +579,15 @@ export default function DashboardPage() {
   };
 
   const handlePrintQueue = () => {
-    printElement('printable-arrivals-manifest', `Isalu Hospitals - Arrivals Queue (${selectedClinic})`, {
-      fullWidth: true,
-      landscape: false,
-      margin: '8mm 10mm',
-    });
+    printElement(
+      'printable-arrivals-manifest',
+      `Isalu Hospitals - Arrivals Queue (${selectedClinic}) - ${queueDateFilter === 'Today' ? "Today's Clinic" : 'All Dates'}`,
+      {
+        fullWidth: true,
+        landscape: true,
+        margin: '6mm 8mm',
+      }
+    );
   };
 
   const handlePrintCompletedQueue = () => {
@@ -692,6 +726,14 @@ export default function DashboardPage() {
           return false;
         }
 
+        // Today's Clinic Date Filter
+        if (queueDateFilter === 'Today') {
+          const rawDate = b.appointment_date || b.date;
+          const bDate = rawDate ? rawDate.slice(0, 10) : '';
+          const todayStr = new Date().toISOString().slice(0, 10);
+          if (bDate !== todayStr) return false;
+        }
+
         // Clinic / Department Filter
         if (selectedClinic !== 'All') {
           const sc = selectedClinic.toLowerCase().trim();
@@ -766,6 +808,12 @@ export default function DashboardPage() {
 
       if (activeSubmodule === 'hmo-approvals') {
         if (!isHmoBooking(b)) return false;
+        if (hmoDateFilter === 'Today') {
+          const rawDate = b.appointment_date || b.date;
+          const bDate = rawDate ? rawDate.slice(0, 10) : '';
+          const todayStr = new Date().toISOString().slice(0, 10);
+          if (bDate !== todayStr) return false;
+        }
         if (selectedHmoProvider !== 'All' && !matchesHmoProvider(b, selectedHmoProvider)) {
           return false;
         }
@@ -785,6 +833,14 @@ export default function DashboardPage() {
       if (activeSubmodule === 'finance-invoices') {
         const isEligible = isPrivateBooking(b) || b.hmo_status?.includes('Rerouted') || b.status === 'Payment Approved';
         if (!isEligible) return false;
+
+        // Today's Clinic Date Filter
+        if (financeDateFilter === 'Today') {
+          const rawDate = b.appointment_date || b.date;
+          const bDate = rawDate ? rawDate.slice(0, 10) : '';
+          const todayStr = new Date().toISOString().slice(0, 10);
+          if (bDate !== todayStr) return false;
+        }
 
         const isCleared = b.payment_status === 'Paid' || b.status === 'Payment Approved';
         if (financeStatusFilter === 'Pending') return !isCleared;
@@ -819,8 +875,11 @@ export default function DashboardPage() {
     patientCategoryFilter,
     hmoApprovalStatusFilter,
     financeStatusFilter,
+    financeDateFilter,
     queueFilter,
+    queueDateFilter,
     completedDateFilter,
+    hmoDateFilter,
   ]);
 
   // Dynamic Badges
@@ -994,6 +1053,18 @@ export default function DashboardPage() {
           )}
 
           {/* =========================================================================
+              MODULE: SPECIALIST CLINIC SESSION SHIFT & NOTIFICATION HUB
+          ========================================================================= */}
+          {activeSubmodule === 'specialist-session-shift' && (
+            <DoctorShiftRescheduleModule
+              currentUser={currentUser}
+              departments={departments}
+              doctors={doctors}
+              onRefreshDashboard={fetchData}
+            />
+          )}
+
+          {/* =========================================================================
               MODULE 1: TRIAGE & QUEUE
           ========================================================================= */}
           {activeSubmodule === 'triage-queue' && (
@@ -1010,8 +1081,68 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+                  {/* Today's Clinic Date Filter */}
+                  {(() => {
+                    const todayStr = new Date().toISOString().slice(0, 10);
+                    const queueActiveBase = bookings.filter((b) => {
+                      if (queueFilter === 'Active') {
+                        return b.status !== 'Completed' && b.status !== 'Cancelled';
+                      }
+                      return true;
+                    });
+                    const todayQueueCount = queueActiveBase.filter((b) => {
+                      const rawDate = b.appointment_date || b.date;
+                      return rawDate ? rawDate.slice(0, 10) === todayStr : false;
+                    }).length;
+                    const allQueueCount = queueActiveBase.length;
+
+                    return (
+                      <div className="inline-flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-bold border border-slate-200 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setQueueDateFilter('Today')}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                            queueDateFilter === 'Today'
+                              ? 'bg-teal-700 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                          title="Show today's clinic arrivals only"
+                        >
+                          <Calendar className={`w-3.5 h-3.5 ${queueDateFilter === 'Today' ? 'text-teal-200' : 'text-teal-600'}`} />
+                          <span>Today&apos;s Clinic</span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                              queueDateFilter === 'Today' ? 'bg-teal-900 text-white' : 'bg-slate-300/60 text-slate-700'
+                            }`}
+                          >
+                            {todayQueueCount}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setQueueDateFilter('All')}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                            queueDateFilter === 'All'
+                              ? 'bg-white text-slate-900 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                          title="Show arrivals across all dates"
+                        >
+                          <span>All Dates</span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                              queueDateFilter === 'All' ? 'bg-slate-800 text-white' : 'bg-slate-300/60 text-slate-700'
+                            }`}
+                          >
+                            {allQueueCount}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })()}
+
                   {/* Active Queue vs All Arrivals Toggle */}
-                  <div className="inline-flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-bold border border-slate-200">
+                  <div className="inline-flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-bold border border-slate-200 shrink-0">
                     <button
                       type="button"
                       onClick={() => setQueueFilter('Active')}
@@ -1022,7 +1153,16 @@ export default function DashboardPage() {
                       }`}
                       title="Only show active arrivals waiting for consultation"
                     >
-                      Active Queue ({bookings.filter((b) => b.status !== 'Completed' && b.status !== 'Cancelled').length})
+                      Active Queue ({(() => {
+                        const todayStr = new Date().toISOString().slice(0, 10);
+                        return bookings.filter((b) => {
+                          if (queueDateFilter === 'Today') {
+                            const rawDate = b.appointment_date || b.date;
+                            if (!rawDate || rawDate.slice(0, 10) !== todayStr) return false;
+                          }
+                          return b.status !== 'Completed' && b.status !== 'Cancelled';
+                        }).length;
+                      })()})
                     </button>
                     <button
                       type="button"
@@ -1034,7 +1174,16 @@ export default function DashboardPage() {
                       }`}
                       title="Show all bookings including completed visits"
                     >
-                      All ({bookings.length})
+                      All ({(() => {
+                        const todayStr = new Date().toISOString().slice(0, 10);
+                        return bookings.filter((b) => {
+                          if (queueDateFilter === 'Today') {
+                            const rawDate = b.appointment_date || b.date;
+                            if (!rawDate || rawDate.slice(0, 10) !== todayStr) return false;
+                          }
+                          return true;
+                        }).length;
+                      })()})
                     </button>
                   </div>
 
@@ -1086,52 +1235,21 @@ export default function DashboardPage() {
                         selectedClinic === 'All' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
                       }`}
                     >
-                      {queueFilter === 'Active'
-                        ? bookings.filter((b) => b.status !== 'Completed' && b.status !== 'Cancelled').length
-                        : bookings.length}
+                      {(() => {
+                        const todayStr = new Date().toISOString().slice(0, 10);
+                        return bookings.filter((b) => {
+                          if (queueDateFilter === 'Today') {
+                            const rawDate = b.appointment_date || b.date;
+                            if (!rawDate || rawDate.slice(0, 10) !== todayStr) return false;
+                          }
+                          if (queueFilter === 'Active') {
+                            return b.status !== 'Completed' && b.status !== 'Cancelled';
+                          }
+                          return true;
+                        }).length;
+                      })()}
                     </span>
                   </button>
-
-                  {featuredClinics.map((clinicName) => {
-                    const count = bookings.filter((b) => {
-                      if (queueFilter === 'Active' && (b.status === 'Completed' || b.status === 'Cancelled')) {
-                        return false;
-                      }
-                      const sc = clinicName.toLowerCase().trim();
-                      return (
-                        (b.department?.name && b.department.name.toLowerCase() === sc) ||
-                        (b.doctor_specialty && b.doctor_specialty.toLowerCase().includes(sc)) ||
-                        (b.doctor?.specialty && b.doctor.specialty.toLowerCase().includes(sc)) ||
-                        (b.doctor?.department?.name && b.doctor.department.name.toLowerCase() === sc)
-                      );
-                    }).length;
-
-                    const isSelected = selectedClinic.toLowerCase() === clinicName.toLowerCase();
-
-                    return (
-                      <button
-                        key={clinicName}
-                        onClick={() => setSelectedClinic(isSelected ? 'All' : clinicName)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                          isSelected
-                            ? 'bg-teal-700 text-white shadow-xs'
-                            : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                        }`}
-                      >
-                        <Stethoscope
-                          className={`w-3.5 h-3.5 ${isSelected ? 'text-teal-200' : 'text-teal-600'}`}
-                        />
-                        <span>{clinicName}</span>
-                        <span
-                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
-                            isSelected ? 'bg-teal-800 text-white' : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
 
                   {/* Dropdown for All Hospital Departments */}
                   <div className="relative inline-flex items-center shrink-0">
@@ -1139,15 +1257,14 @@ export default function DashboardPage() {
                       value={selectedClinic}
                       onChange={(e) => setSelectedClinic(e.target.value)}
                       className={`pl-3 pr-7 py-1.5 rounded-xl text-xs font-bold border shadow-2xs cursor-pointer appearance-none transition-all ${
-                        selectedClinic !== 'All' &&
-                        !featuredClinics.map((f) => f.toLowerCase()).includes(selectedClinic.toLowerCase())
+                        selectedClinic !== 'All'
                           ? 'bg-teal-700 text-white border-teal-700'
                           : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                       }`}
                       title="Select any hospital clinic or specialty"
                     >
                       <option value="All" className="bg-white text-slate-900 font-semibold">
-                        More Clinics... ({departments.length})
+                        Select Clinic
                       </option>
                       {departments.map((d) => (
                         <option key={d.id} value={d.name} className="bg-white text-slate-900 font-semibold">
@@ -1157,8 +1274,7 @@ export default function DashboardPage() {
                     </select>
                     <ChevronDown
                       className={`w-3 h-3 absolute right-2 pointer-events-none ${
-                        selectedClinic !== 'All' &&
-                        !featuredClinics.map((f) => f.toLowerCase()).includes(selectedClinic.toLowerCase())
+                        selectedClinic !== 'All'
                           ? 'text-white'
                           : 'text-slate-400'
                       }`}
@@ -1193,7 +1309,14 @@ export default function DashboardPage() {
                     }`}
                   >
                     <CreditCard className="w-3.5 h-3.5" />
-                    Private ({bookings.filter(isPrivateBooking).length})
+                    Private ({bookings.filter((b) => {
+                      if (queueDateFilter === 'Today') {
+                        const rawDate = b.appointment_date || b.date;
+                        if (!rawDate || rawDate.slice(0, 10) !== new Date().toISOString().slice(0, 10)) return false;
+                      }
+                      if (queueFilter === 'Active' && (b.status === 'Completed' || b.status === 'Cancelled')) return false;
+                      return isPrivateBooking(b);
+                    }).length})
                   </button>
                   <button
                     onClick={() => {
@@ -1206,7 +1329,14 @@ export default function DashboardPage() {
                     }`}
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    HMO ({bookings.filter(isHmoBooking).length})
+                    HMO ({bookings.filter((b) => {
+                      if (queueDateFilter === 'Today') {
+                        const rawDate = b.appointment_date || b.date;
+                        if (!rawDate || rawDate.slice(0, 10) !== new Date().toISOString().slice(0, 10)) return false;
+                      }
+                      if (queueFilter === 'Active' && (b.status === 'Completed' || b.status === 'Cancelled')) return false;
+                      return isHmoBooking(b);
+                    }).length})
                   </button>
 
                   {/* HMO Provider Dropdown */}
@@ -1611,6 +1741,9 @@ export default function DashboardPage() {
                   {/* Filter Metadata Pill Bar */}
                   <div className="mt-3 flex items-center justify-between bg-slate-100 px-3 py-1.5 rounded-lg text-[10px] text-slate-700">
                     <div>
+                      Session: <strong className="text-slate-900">{queueDateFilter === 'Today' ? "Today's Clinic" : 'All Dates'}</strong>
+                    </div>
+                    <div>
                       Clinic: <strong className="text-slate-900">{selectedClinic}</strong>
                     </div>
                     <div>
@@ -1871,59 +2004,19 @@ export default function DashboardPage() {
                     </span>
                   </button>
 
-                  {featuredClinics.map((clinicName) => {
-                    const count = bookings.filter((b) => {
-                      if (b.status !== 'Completed') return false;
-                      const sc = clinicName.toLowerCase().trim();
-                      return (
-                        (b.department?.name && b.department.name.toLowerCase() === sc) ||
-                        (b.doctor_specialty && b.doctor_specialty.toLowerCase().includes(sc)) ||
-                        (b.doctor?.specialty && b.doctor.specialty.toLowerCase().includes(sc)) ||
-                        (b.doctor?.department?.name && b.doctor.department.name.toLowerCase() === sc)
-                      );
-                    }).length;
-
-                    const isSelected = selectedClinic.toLowerCase() === clinicName.toLowerCase();
-
-                    return (
-                      <button
-                        key={clinicName}
-                        onClick={() => setSelectedClinic(isSelected ? 'All' : clinicName)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                          isSelected
-                            ? 'bg-teal-700 text-white shadow-xs'
-                            : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                        }`}
-                      >
-                        <Stethoscope
-                          className={`w-3.5 h-3.5 ${isSelected ? 'text-teal-200' : 'text-teal-600'}`}
-                        />
-                        <span>{clinicName}</span>
-                        <span
-                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
-                            isSelected ? 'bg-teal-800 text-white' : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
-
                   {/* Dropdown for All Hospital Departments */}
                   <div className="relative inline-flex items-center shrink-0">
                     <select
                       value={selectedClinic}
                       onChange={(e) => setSelectedClinic(e.target.value)}
                       className={`pl-3 pr-7 py-1.5 rounded-xl text-xs font-bold border shadow-2xs cursor-pointer appearance-none transition-all ${
-                        selectedClinic !== 'All' &&
-                        !featuredClinics.map((f) => f.toLowerCase()).includes(selectedClinic.toLowerCase())
+                        selectedClinic !== 'All'
                           ? 'bg-teal-700 text-white border-teal-700'
                           : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                       }`}
                     >
                       <option value="All" className="bg-white text-slate-900 font-semibold">
-                        More Clinics... ({departments.length})
+                        Select Clinic
                       </option>
                       {departments.map((d) => (
                         <option key={d.id} value={d.name} className="bg-white text-slate-900 font-semibold">
@@ -1933,8 +2026,7 @@ export default function DashboardPage() {
                     </select>
                     <ChevronDown
                       className={`w-3 h-3 absolute right-2 pointer-events-none ${
-                        selectedClinic !== 'All' &&
-                        !featuredClinics.map((f) => f.toLowerCase()).includes(selectedClinic.toLowerCase())
+                        selectedClinic !== 'All'
                           ? 'text-white'
                           : 'text-slate-400'
                       }`}
@@ -2305,85 +2397,170 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-xl shrink-0">
-                    <button
-                      onClick={() => setHmoApprovalStatusFilter('All')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                        hmoApprovalStatusFilter === 'All'
-                          ? 'bg-white text-slate-900 shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      All ({bookings.filter(isHmoBooking).length})
-                    </button>
-                    <button
-                      onClick={() => setHmoApprovalStatusFilter('Pending')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                        hmoApprovalStatusFilter === 'Pending'
-                          ? 'bg-amber-500 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <Clock className="w-3 h-3" />
-                      Pending ({badges.pendingHmo})
-                    </button>
-                    <button
-                      onClick={() => setHmoApprovalStatusFilter('Approved')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                        hmoApprovalStatusFilter === 'Approved'
-                          ? 'bg-emerald-600 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <CheckCircle2 className="w-3 h-3" />
-                      Approved ({bookings.filter((b) => isHmoBooking(b) && b.hmo_status === 'Approved').length})
-                    </button>
-                  </div>
-                  <div className="px-3.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold flex items-center gap-1.5 shrink-0">
-                    <ShieldCheck className="w-4 h-4 text-amber-600" />
-                    <span>{badges.pendingHmo} Awaiting Verification</span>
-                  </div>
+                  {(() => {
+                    const todayStr = new Date().toISOString().slice(0, 10);
+                    const hmoBaseForStatusCounts = bookings.filter((b) => {
+                      if (!isHmoBooking(b)) return false;
+                      if (hmoDateFilter === 'Today') {
+                        const rawDate = b.appointment_date || b.date;
+                        return rawDate ? rawDate.slice(0, 10) === todayStr : false;
+                      }
+                      return true;
+                    });
+                    const pendingCount = hmoBaseForStatusCounts.filter((b) => b.hmo_status !== 'Approved').length;
+                    const approvedCount = hmoBaseForStatusCounts.filter((b) => b.hmo_status === 'Approved').length;
+
+                    return (
+                      <>
+                        <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-xl shrink-0">
+                          <button
+                            onClick={() => setHmoApprovalStatusFilter('All')}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                              hmoApprovalStatusFilter === 'All'
+                                ? 'bg-white text-slate-900 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            All ({hmoBaseForStatusCounts.length})
+                          </button>
+                          <button
+                            onClick={() => setHmoApprovalStatusFilter('Pending')}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                              hmoApprovalStatusFilter === 'Pending'
+                                ? 'bg-amber-500 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <Clock className="w-3 h-3" />
+                            Pending ({pendingCount})
+                          </button>
+                          <button
+                            onClick={() => setHmoApprovalStatusFilter('Approved')}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                              hmoApprovalStatusFilter === 'Approved'
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            Approved ({approvedCount})
+                          </button>
+                        </div>
+                        <div className="px-3.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold flex items-center gap-1.5 shrink-0">
+                          <ShieldCheck className="w-4 h-4 text-amber-600" />
+                          <span>{pendingCount} Awaiting Verification</span>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
-              {/* HMO Provider Filter Quick-Chips Bar */}
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin pb-1">
-                <button
-                  onClick={() => setSelectedHmoProvider('All')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                    selectedHmoProvider === 'All'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  All HMOs ({bookings.filter(isHmoBooking).length})
-                </button>
-                {hmoCompanies.map((hmo) => {
-                  const count = bookings.filter(
-                    (b) => isHmoBooking(b) && matchesHmoProvider(b, hmo.name)
-                  ).length;
-                  const isSelected = selectedHmoProvider.toLowerCase() === hmo.name.toLowerCase();
-                  return (
-                    <button
-                      key={hmo.id}
-                      onClick={() => setSelectedHmoProvider(isSelected ? 'All' : hmo.name)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                        isSelected
-                          ? 'bg-teal-700 text-white shadow-xs'
-                          : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              {/* Single Field Filter by HMO Provider + Today's Clinic Date Filter */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label htmlFor="hmo-type-filter" className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                    <ShieldCheck className="w-4 h-4 text-teal-600" />
+                    <span>Filter by HMO:</span>
+                  </label>
+                  <div className="relative inline-flex items-center shrink-0">
+                    <select
+                      id="hmo-type-filter"
+                      value={selectedHmoProvider}
+                      onChange={(e) => setSelectedHmoProvider(e.target.value)}
+                      className={`pl-3 pr-8 py-1.5 rounded-xl text-xs font-bold border shadow-2xs cursor-pointer appearance-none transition-all ${
+                        selectedHmoProvider !== 'All'
+                          ? 'bg-teal-700 text-white border-teal-700'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                       }`}
+                      title="Filter consultations by HMO type or provider"
                     >
-                      <span>{hmo.name}</span>
-                      <span
-                        className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                          isSelected ? 'bg-teal-800 text-white' : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {count}
-                      </span>
+                      <option value="All" className="bg-white text-slate-900 font-semibold">
+                        All HMO Types ({bookings.filter(isHmoBooking).length})
+                      </option>
+                      {hmoCompanies.map((hmo) => {
+                        const count = bookings.filter(
+                          (b) => isHmoBooking(b) && matchesHmoProvider(b, hmo.name)
+                        ).length;
+                        return (
+                          <option key={hmo.id} value={hmo.name} className="bg-white text-slate-900 font-semibold">
+                            {hmo.name} {count > 0 ? `(${count})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 absolute right-2.5 pointer-events-none ${
+                        selectedHmoProvider !== 'All' ? 'text-white' : 'text-slate-400'
+                      }`}
+                    />
+                  </div>
+
+                  {selectedHmoProvider !== 'All' && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHmoProvider('All')}
+                      className="text-xs text-slate-500 hover:text-slate-900 underline font-medium cursor-pointer"
+                    >
+                      Reset Filter
                     </button>
-                  );
-                })}
+                  )}
+                </div>
+
+                {/* Date Filter: Today's Clinic vs All Dates */}
+                <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl shrink-0 self-start sm:self-auto">
+                  {(() => {
+                    const todayStr = new Date().toISOString().slice(0, 10);
+                    const todayHmoCount = bookings.filter((b) => {
+                      if (!isHmoBooking(b)) return false;
+                      const rawDate = b.appointment_date || b.date;
+                      return rawDate ? rawDate.slice(0, 10) === todayStr : false;
+                    }).length;
+                    const allHmoCount = bookings.filter(isHmoBooking).length;
+
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setHmoDateFilter('Today')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            hmoDateFilter === 'Today'
+                              ? 'bg-white text-slate-900 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Calendar className="w-3.5 h-3.5 text-teal-600" />
+                          <span>Today&apos;s Clinic</span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                              hmoDateFilter === 'Today' ? 'bg-teal-100 text-teal-800' : 'bg-slate-300/60 text-slate-700'
+                            }`}
+                          >
+                            {todayHmoCount}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHmoDateFilter('All')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            hmoDateFilter === 'All'
+                              ? 'bg-white text-slate-900 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <span>All Dates</span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                              hmoDateFilter === 'All' ? 'bg-slate-800 text-white' : 'bg-slate-300/60 text-slate-700'
+                            }`}
+                          >
+                            {allHmoCount}
+                          </span>
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
 
               <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
@@ -2406,17 +2583,44 @@ export default function DashboardPage() {
                             <ShieldCheck className="w-8 h-8 mx-auto mb-2 text-teal-600" />
                             <p className="font-semibold text-slate-700">No HMO Insurance Records Found</p>
                             <p className="text-[11px] mt-1 text-slate-400">
-                              {hmoApprovalStatusFilter === 'Pending'
+                              {hmoDateFilter === 'Today'
+                                ? "No HMO enrollee consultations scheduled for today's clinic."
+                                : hmoApprovalStatusFilter === 'Pending'
                                 ? 'No insurance enrollees currently pending pre-authorization.'
                                 : 'Try changing the HMO provider filter or search terms.'}
                             </p>
+                            {hmoDateFilter === 'Today' && (
+                              <button
+                                type="button"
+                                onClick={() => setHmoDateFilter('All')}
+                                className="mt-3 px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-xs border border-teal-200 transition-colors cursor-pointer"
+                              >
+                                View All Dates ({bookings.filter(isHmoBooking).length})
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ) : (
                         filteredBookings.map((b) => (
                           <tr key={b.id} className="hover:bg-slate-50/80">
                             <td className="px-5 py-4 font-mono font-bold text-slate-900">{b.reference_code}</td>
-                            <td className="px-5 py-4 font-bold text-slate-900">{b.patient_name}</td>
+                            <td className="px-5 py-4 font-bold text-slate-900">
+                              <div>{b.patient_name}</div>
+                              <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
+                                <Stethoscope className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>{b.department?.name || b.doctor_specialty || 'Consultation'}</span>
+                                <span>•</span>
+                                <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>{b.date || b.appointment_date}</span>
+                                {(b.time || b.appointment_time) && (
+                                  <>
+                                    <span>•</span>
+                                    <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <span>{b.time || b.appointment_time}</span>
+                                  </>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-5 py-4 text-teal-700 font-bold">{b.hmo_name || 'HMO Company'}</td>
                             <td className="px-5 py-4 font-mono text-slate-600 font-semibold">
                               {b.hmo_policy_code || '—'}
@@ -2672,46 +2876,137 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2">
                   <div className="px-3.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-amber-600" />
-                    <span>{badges.pendingBilling} Pending Clearance</span>
+                    <span>
+                      {(() => {
+                        const todayStr = new Date().toISOString().slice(0, 10);
+                        const isEligible = (b: Booking) => isPrivateBooking(b) || b.hmo_status?.includes('Rerouted') || b.status === 'Payment Approved';
+                        return bookings.filter((b) => {
+                          if (!isEligible(b)) return false;
+                          if (financeDateFilter === 'Today') {
+                            const rawDate = b.appointment_date || b.date;
+                            if (!rawDate || rawDate.slice(0, 10) !== todayStr) return false;
+                          }
+                          return !(b.payment_status === 'Paid' || b.status === 'Payment Approved');
+                        }).length;
+                      })()} Pending Clearance
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Status Filter Tabs */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFinanceStatusFilter('All')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                    financeStatusFilter === 'All'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  All Consultations ({bookings.filter((b) => isPrivateBooking(b) || b.hmo_status?.includes('Rerouted')).length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFinanceStatusFilter('Pending')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                    financeStatusFilter === 'Pending'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  Pending ({badges.pendingBilling})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFinanceStatusFilter('Cleared')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                    financeStatusFilter === 'Cleared'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  Cleared ({bookings.filter((b) => (isPrivateBooking(b) || b.hmo_status?.includes('Rerouted')) && (b.payment_status === 'Paid' || b.status === 'Payment Approved')).length})
-                </button>
+              {/* Status Filter Tabs + Date Filter */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(() => {
+                    const todayStr = new Date().toISOString().slice(0, 10);
+                    const isEligible = (b: Booking) => isPrivateBooking(b) || b.hmo_status?.includes('Rerouted') || b.status === 'Payment Approved';
+                    const baseList = bookings.filter((b) => {
+                      if (!isEligible(b)) return false;
+                      if (financeDateFilter === 'Today') {
+                        const rawDate = b.appointment_date || b.date;
+                        return rawDate ? rawDate.slice(0, 10) === todayStr : false;
+                      }
+                      return true;
+                    });
+                    const pendingCount = baseList.filter((b) => !(b.payment_status === 'Paid' || b.status === 'Payment Approved')).length;
+                    const clearedCount = baseList.filter((b) => b.payment_status === 'Paid' || b.status === 'Payment Approved').length;
+
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setFinanceStatusFilter('All')}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                            financeStatusFilter === 'All'
+                              ? 'bg-slate-900 text-white shadow-xs'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          All Consultations ({baseList.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFinanceStatusFilter('Pending')}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                            financeStatusFilter === 'Pending'
+                              ? 'bg-amber-600 text-white shadow-xs'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          Pending ({pendingCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFinanceStatusFilter('Cleared')}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                            financeStatusFilter === 'Cleared'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          Cleared ({clearedCount})
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Date Filter: Today's Clinic vs All Dates */}
+                {(() => {
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  const isEligible = (b: Booking) => isPrivateBooking(b) || b.hmo_status?.includes('Rerouted') || b.status === 'Payment Approved';
+                  
+                  const todayFinanceCount = bookings.filter((b) => {
+                    if (!isEligible(b)) return false;
+                    const rawDate = b.appointment_date || b.date;
+                    return rawDate ? rawDate.slice(0, 10) === todayStr : false;
+                  }).length;
+                  const allFinanceCount = bookings.filter(isEligible).length;
+
+                  return (
+                    <div className="inline-flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-bold border border-slate-200 shrink-0 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => setFinanceDateFilter('Today')}
+                        className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                          financeDateFilter === 'Today'
+                            ? 'bg-teal-700 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        title="Show today's clinic billing only"
+                      >
+                        <Calendar className={`w-3.5 h-3.5 ${financeDateFilter === 'Today' ? 'text-teal-200' : 'text-teal-600'}`} />
+                        <span>Today&apos;s Clinic</span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                            financeDateFilter === 'Today' ? 'bg-teal-900 text-white' : 'bg-slate-300/60 text-slate-700'
+                          }`}
+                        >
+                          {todayFinanceCount}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFinanceDateFilter('All')}
+                        className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                          financeDateFilter === 'All'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        title="Show billing across all dates"
+                      >
+                        <span>All Dates</span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                            financeDateFilter === 'All' ? 'bg-slate-800 text-white' : 'bg-slate-300/60 text-slate-700'
+                          }`}
+                        >
+                          {allFinanceCount}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
@@ -3814,6 +4109,11 @@ export default function DashboardPage() {
           setStaffUsers((prev) =>
             prev.map((s) => (s.id === normalizedStaff.id ? normalizedStaff : s))
           );
+          if (currentUser && (currentUser.id === normalizedStaff.id || currentUser.email === normalizedStaff.email)) {
+            setCurrentUser(normalizedStaff);
+            const token = getAuthToken();
+            if (token) setAuthSession(token, normalizedStaff);
+          }
           setActionSuccess(`Staff account "${normalizedStaff.name}" updated successfully.`);
         }}
       />
