@@ -421,8 +421,8 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
             <X className="w-4 h-4" />
           </button>
 
-          <div className="flex items-center gap-2.5 mb-1.5 pr-10">
-            <span className="px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 truncate">
+          <div className="flex items-center gap-2.5 mb-1.5 pr-10 flex-wrap">
+            <span className="px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
               {getClinicIcon(booking.doctor_specialty || booking.department?.name || doctor?.specialty)}
               <span>{booking.doctor_specialty || booking.department?.name || doctor?.specialty || 'Specialty'} Clinic</span>
             </span>

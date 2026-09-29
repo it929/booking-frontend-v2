@@ -1073,23 +1073,23 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
 
                   <div className="space-y-4">
                     {/* Header with icon, title, location, and doctor count badge */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-14 h-14 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#f0f9ff] to-[#e0f2fe] border border-[#bae6fd] flex items-center justify-center text-[#0085D0] group-hover:bg-gradient-to-br group-hover:from-[#0085D0] group-hover:to-[#005B9C] group-hover:text-white group-hover:border-transparent group-hover:shadow-md group-hover:shadow-[#0085D0]/25 transition-all duration-300 shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                      <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#f0f9ff] to-[#e0f2fe] border border-[#bae6fd] flex items-center justify-center text-[#0085D0] group-hover:bg-gradient-to-br group-hover:from-[#0085D0] group-hover:to-[#005B9C] group-hover:text-white group-hover:border-transparent group-hover:shadow-md group-hover:shadow-[#0085D0]/25 transition-all duration-300 shrink-0">
                           {getClinicIcon(dept.icon_name || dept.name)}
                         </div>
-                        <div className="min-w-0">
-                          <h3 className="text-xl sm:text-lg font-black text-slate-900 group-hover:text-[#0085D0] transition-colors tracking-tight truncate leading-snug">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-lg font-black text-slate-900 group-hover:text-[#0085D0] transition-colors tracking-tight leading-snug break-words">
                             {dept.name}
                           </h3>
-                          <p className="text-sm sm:text-xs font-semibold text-slate-500 group-hover:text-slate-600 transition-colors truncate mt-0.5 flex items-center gap-1.5">
+                          <p className="text-sm sm:text-xs font-semibold text-slate-500 group-hover:text-slate-600 transition-colors mt-0.5 flex items-center gap-1.5">
                             <MapPin className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#0085D0]/80 shrink-0" />
-                            <span>{dept.location || 'Outpatient Clinical Unit'}</span>
+                            <span className="line-clamp-1">{dept.location || 'Outpatient Clinical Unit'}</span>
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
                         {clinicStatus.isOpenToday && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
@@ -1210,8 +1210,8 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
               </div>
 
               {/* Clinic Badge & Step Counter */}
-              <div className="flex items-center gap-2 mb-1.5 pr-10">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md text-sky-200 border border-white/20 text-[11px] font-bold shadow-2xs truncate">
+              <div className="flex items-center gap-2 mb-1.5 pr-10 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md text-sky-200 border border-white/20 text-[11px] font-bold shadow-2xs">
                   {getClinicIcon(currentClinic.icon_name || currentClinic.name)}
                   <span>{currentClinic.name} Clinic</span>
                 </span>
