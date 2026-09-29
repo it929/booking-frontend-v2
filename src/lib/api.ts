@@ -12,8 +12,17 @@ import {
   StaffUser,
 } from './types';
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') || 'http://127.0.0.1:8000/api';
+function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/+$/, '');
+  }
+  // In the browser, use relative path '/api' so requests go through the Next.js rewrite proxy.
+  // This automatically works across localhost, mobile Wi-Fi (192.168.x.x), and LAN testing without CORS issues.
+  if (typeof window !== 'undefined') {
+    return '/api';
+  }
+  return 'http://127.0.0.1:8000/api';
+}
 
 const TOKEN_KEY = 'isalu_staff_token';
 const USER_KEY = 'isalu_staff_user';
@@ -76,7 +85,9 @@ export class ApiError extends Error {
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const baseUrl = getApiBaseUrl();
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${baseUrl}${cleanEndpoint}`;
 
   const headers: Record<string, string> = {
     Accept: 'application/json',

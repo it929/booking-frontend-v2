@@ -277,7 +277,8 @@ export async function shareTicketToWhatsApp(
   const dateStr = booking.date || booking.appointment_date || '';
   const timeStr = booking.time || booking.appointment_time || '';
   const paymentLabel = booking.payment_type || 'Private Self-Pay';
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+  const appBaseUrl = typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '') : undefined;
+  const origin = appBaseUrl || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
   const pdfDownloadUrl = `${origin}/check-status?ref=${encodeURIComponent(refCode)}&download=pdf`;
 
   const message = `🏥 *ISALU HOSPITALS APPOINTMENT CONFIRMATION*
@@ -301,27 +302,30 @@ ${origin}/check-status?ref=${encodeURIComponent(refCode)}`;
   // 1. Generate high-res vector PDF (100% reliable, never throws)
   const result = generateAppointmentVectorPdf(booking, filename, getDoctorName);
 
-  // 2. Check if mobile Web Share API with files is available
+  // 2. Check if mobile Web Share API with files is available (requires HTTPS on mobile)
   if (
     typeof navigator !== 'undefined' &&
     typeof navigator.canShare === 'function' &&
     navigator.canShare({ files: [result.file] })
   ) {
     try {
+      // NOTE: Passing a long text body alongside files causes WhatsApp (especially on Android)
+      // to ignore the file and only share the plain text.
+      // Passing the PDF file with the appointment title ensures WhatsApp attaches the real PDF document!
       await navigator.share({
         files: [result.file],
         title: `Isalu Hospitals Ticket - ${refCode}`,
-        text: message,
       });
       return { sharedViaApi: true, downloaded: false, downloadUrl: pdfDownloadUrl };
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') {
         return { sharedViaApi: false, downloaded: false, downloadUrl: pdfDownloadUrl };
       }
+      // If file share failed, continue to fallback below
     }
   }
 
-  // 3. Fallback: Automatically download the PDF to device and launch WhatsApp Web
+  // 3. Fallback (Desktop / Insecure HTTP): Automatically download the PDF to device and launch WhatsApp Web
   const url = URL.createObjectURL(result.blob);
   const a = document.createElement('a');
   a.href = url;

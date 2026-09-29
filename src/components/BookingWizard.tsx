@@ -290,7 +290,7 @@ export default function BookingWizard({ initialDoctorId, initialDeptId }: Bookin
           }
           setSelectedSlot(clinicTime);
         } catch (err: unknown) {
-          console.error(err);
+          console.warn('Doctor availability check notice:', err);
           setAvailability(null);
         } finally {
           setCheckingAvailability(false);
