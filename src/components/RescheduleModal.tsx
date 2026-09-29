@@ -31,8 +31,10 @@ import {
   Brain,
   Smile,
   Activity,
-  Building2
+  Building2,
+  FileDown
 } from 'lucide-react';
+import { downloadTicketPdf, shareTicketToWhatsApp, shareTicketToEmail } from '@/lib/pdfUtils';
 
 function getClinicIcon(nameOrIcon?: string) {
   const lower = (nameOrIcon || '').toLowerCase();
@@ -87,6 +89,8 @@ export default function RescheduleModal({
   const [loadingDoctor, setLoadingDoctor] = useState(false);
   const [rescheduledBooking, setRescheduledBooking] = useState<Booking | null>(null);
   const [copiedTicket, setCopiedTicket] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState<'whatsapp' | 'email' | 'download' | null>(null);
+  const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
 
   // Today string for min date (YYYY-MM-DD)
   const todayStr = new Date().toISOString().split('T')[0];
@@ -244,7 +248,7 @@ RESCHEDULED APPOINTMENT SUMMARY:
 ${(bk.hmo_policy_code || booking?.hmo_policy_code) ? `• HMO Policy ID: ${bk.hmo_policy_code || booking?.hmo_policy_code}\n` : ''}
 HOSPITAL LOCATION & CONTACT:
 Isalu Hospitals, No. 46, Ijaiye Road, Ogba, Ikeja, Lagos
-Contact: +234 800 47258 2273
+Emergency Dispatch: +234 706 3911 672
 
 Please arrive 15 minutes before your consultation window for nursing triage clearance.
 
@@ -253,6 +257,65 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
 `;
 
     return `mailto:${encodeURIComponent(bk.patient_email || booking?.patient_email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  // Handle WhatsApp PDF sharing
+  const handleWhatsAppPdf = async (bk: Booking) => {
+    try {
+      setPdfLoading('whatsapp');
+      setPdfSuccessMessage(null);
+      const res = await shareTicketToWhatsApp(
+        bk,
+        'printable-reschedule-ticket',
+        () => getDoctorInitialName(doctor || bk.doctor || bk.doctor_name || booking?.doctor || booking?.doctor_name)
+      );
+      if (res.downloaded) {
+        setPdfSuccessMessage('Official PDF ticket downloaded! WhatsApp opened so you can attach it.');
+        setTimeout(() => setPdfSuccessMessage(null), 5000);
+      }
+    } catch (err: unknown) {
+      console.error('WhatsApp PDF share error:', err);
+      window.open(getWhatsAppShareUrl(bk), '_blank', 'noopener,noreferrer');
+    } finally {
+      setPdfLoading(null);
+    }
+  };
+
+  // Handle Email PDF sharing
+  const handleEmailPdf = async (bk: Booking) => {
+    try {
+      setPdfLoading('email');
+      setPdfSuccessMessage(null);
+      const res = await shareTicketToEmail(
+        bk,
+        'printable-reschedule-ticket',
+        () => getDoctorInitialName(doctor || bk.doctor || bk.doctor_name || booking?.doctor || booking?.doctor_name)
+      );
+      if (res.downloaded) {
+        setPdfSuccessMessage('Official PDF ticket downloaded! Email app opened.');
+        setTimeout(() => setPdfSuccessMessage(null), 5000);
+      }
+    } catch (err: unknown) {
+      console.error('Email PDF share error:', err);
+      window.location.href = getEmailShareUrl(bk);
+    } finally {
+      setPdfLoading(null);
+    }
+  };
+
+  // Handle Direct PDF Download
+  const handleDownloadPdf = async (bk: Booking) => {
+    try {
+      setPdfLoading('download');
+      setPdfSuccessMessage(null);
+      await downloadTicketPdf('printable-reschedule-ticket', `Isalu-Rescheduled-${bk.reference_code}.pdf`);
+      setPdfSuccessMessage('Official PDF rescheduled ticket voucher downloaded successfully!');
+      setTimeout(() => setPdfSuccessMessage(null), 4000);
+    } catch (err: unknown) {
+      console.error('PDF download error:', err);
+    } finally {
+      setPdfLoading(null);
+    }
   };
 
   // Handle Share or Copy
@@ -420,7 +483,7 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                     <IsaluLogo variant="full" size="lg" />
                   </div>
                   <p className="text-[11px] text-slate-500 font-medium">
-                    No. 46, Ijaiye Road, Ogba, Ikeja, Lagos • Tel: +234 800 47258 2273
+                    No. 46, Ijaiye Road, Ogba, Ikeja, Lagos • Emergency: +234 706 3911 672
                   </p>
                   <span className="inline-block mt-2.5 px-3.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider border border-emerald-200">
                     Appointment Booked & Confirmed
@@ -541,7 +604,15 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                 )}
               </div>
 
-              {/* 3 Main Action Buttons */}
+              {/* Status / Feedback message */}
+              {pdfSuccessMessage && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{pdfSuccessMessage}</span>
+                </div>
+              )}
+
+              {/* 3 Main Action Buttons with PDF Support */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
@@ -552,35 +623,80 @@ ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=
                   <span>Print Slip</span>
                 </button>
 
-                <a
-                  href={getWhatsAppShareUrl(rescheduledBooking)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+                <button
+                  type="button"
+                  onClick={() => handleWhatsAppPdf(rescheduledBooking)}
+                  disabled={pdfLoading !== null}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-75 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer relative"
+                  title="Share official PDF voucher via WhatsApp"
                 >
-                  <WhatsAppIcon className="w-4 h-4" />
-                  <span>WhatsApp</span>
-                </a>
+                  {pdfLoading === 'whatsapp' ? (
+                    <>
+                      <Clock className="w-4 h-4 animate-spin text-white" />
+                      <span>Preparing PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <WhatsAppIcon className="w-4 h-4" />
+                      <span>WhatsApp</span>
+                      <span className="text-[9px] uppercase font-black tracking-wider bg-white/25 px-1.5 py-0.5 rounded text-white shadow-2xs">
+                        PDF
+                      </span>
+                    </>
+                  )}
+                </button>
 
-                <a
-                  href={getEmailShareUrl(rescheduledBooking)}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
+                <button
+                  type="button"
+                  onClick={() => handleEmailPdf(rescheduledBooking)}
+                  disabled={pdfLoading !== null}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-75 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all active:scale-95 cursor-pointer relative"
+                  title="Share official PDF voucher via Email"
                 >
-                  <Mail className="w-4 h-4" />
-                  <span>Email Slip</span>
-                </a>
+                  {pdfLoading === 'email' ? (
+                    <>
+                      <Clock className="w-4 h-4 animate-spin text-white" />
+                      <span>Preparing PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      <span>Email Slip</span>
+                      <span className="text-[9px] uppercase font-black tracking-wider bg-white/25 px-1.5 py-0.5 rounded text-white shadow-2xs">
+                        PDF
+                      </span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Secondary Actions */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => handleShareOrCopy(rescheduledBooking)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
-                >
-                  {copiedTicket ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
-                  <span>{copiedTicket ? 'Copied to Clipboard' : 'Copy Ticket Details'}</span>
-                </button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadPdf(rescheduledBooking)}
+                    disabled={pdfLoading !== null}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-sky-200 bg-sky-50/70 hover:bg-sky-100 text-[#006bac] font-bold text-xs transition-colors cursor-pointer"
+                    title="Download official PDF rescheduled ticket"
+                  >
+                    {pdfLoading === 'download' ? (
+                      <Clock className="w-3.5 h-3.5 animate-spin text-[#006bac]" />
+                    ) : (
+                      <FileDown className="w-3.5 h-3.5 text-[#006bac]" />
+                    )}
+                    <span>Download PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleShareOrCopy(rescheduledBooking)}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    {copiedTicket ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                    <span>{copiedTicket ? 'Copied' : 'Copy Details'}</span>
+                  </button>
+                </div>
 
                 <button
                   type="button"

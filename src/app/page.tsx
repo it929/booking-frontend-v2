@@ -5,15 +5,12 @@ import React, { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import BookingWizard from '@/components/BookingWizard';
-import { 
-  ShieldCheck, 
-  Clock, 
-  CheckCircle2, 
+import {  
+  Clock,  
   Sparkles, 
   Stethoscope, 
   Calendar, 
-  PhoneCall, 
-  FileText, 
+  PhoneCall,  
   Award, 
   HeartHandshake, 
   ChevronDown, 
@@ -56,58 +53,65 @@ function BookingContent() {
 
   return (
     <div className="w-full">
-      {/* ---------------- HERO SECTION ---------------- */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-sky-50/80 via-white to-slate-50 pt-8 pb-12 sm:pt-12 sm:pb-16 border-b border-slate-200/60">
+      {/* ---------------- HERO SECTION: EMERGENCY & APPOINTMENT FLOW ---------------- */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-sky-50/70 via-white to-slate-50/50 pt-6 pb-8 sm:pt-8 sm:pb-10 border-b border-slate-200/60">
         {/* Subtle decorative background aura */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[850px] h-[350px] bg-gradient-to-tr from-[#38bdf8]/15 via-[#0082cd]/10 to-transparent blur-3xl pointer-events-none rounded-full" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[260px] bg-gradient-to-tr from-[#38bdf8]/10 via-[#0082cd]/10 to-transparent blur-3xl pointer-events-none rounded-full" />
         
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center max-w-3xl mx-auto space-y-4">
-            {/* Live Triage Status Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-[#bae6fd] text-[#006bac] shadow-xs text-xs font-bold animate-slide-up">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          <div className="flex flex-col items-center text-center space-y-4">
+            
+            {/* Emergency Dispatch */}
+            <div className="inline-flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-4 py-2 rounded-full bg-rose-50 border border-rose-200/80 text-rose-950 shadow-xs text-xs sm:text-sm animate-slide-up">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
               </span>
-              <span>Live Outpatient Triage & Instant Slot Allocation</span>
-              <span className="text-slate-300">•</span>
-              <span className="text-emerald-600 font-extrabold flex items-center gap-1">
-                <Award className="w-3.5 h-3.5" /> HEFAMAA Certified
+              <span className="font-bold text-slate-700">Emergency Dispatch:</span>
+              <a
+                href="tel:+2347063911672"
+                className="font-black text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1.5 transition-colors"
+                title="Call Emergency Dispatch"
+              >
+                <PhoneCall className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                <span>+234 706 3911 672</span>
+              </a>
+              <span className="text-rose-300 hidden sm:inline">•</span>
+              <span className="text-[11px] font-extrabold uppercase tracking-wide text-rose-600 bg-rose-100/70 px-2 py-0.5 rounded-full hidden sm:inline">
+                24/7 Rapid Response
               </span>
             </div>
 
-            {/* Main Title */}
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-[1.15] animate-slide-up">
-              Specialist Medical Care, <br className="hidden sm:inline" />
-              <span className="bg-gradient-to-r from-[#0082cd] via-[#006bac] to-[#053b61] bg-clip-text text-transparent">
-                Reserved in Real-Time
-              </span>
-            </h1>
+            {/* Find a Specialist → View Clinic Schedule → Book Your Appointment */}
+            <div className="w-full max-w-3xl pt-1">
+              <h1 className="text-base sm:text-lg md:text-xl font-black text-slate-800 tracking-tight flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                <Link
+                  href="/doctors"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0082cd] border border-slate-200 hover:border-sky-300 shadow-2xs transition-all group"
+                >
+                  <Stethoscope className="w-4 h-4 text-[#0082cd] group-hover:scale-110 transition-transform" />
+                  <span>Find a Specialist</span>
+                </Link>
 
-            {/* Subtitle */}
-            <p className="text-sm sm:text-base text-slate-600 font-medium max-w-2xl mx-auto leading-relaxed animate-slide-up">
-              Connect directly with board-certified consultants across 25+ specialized outpatient departments. Guaranteed priority front-desk intake for Private Self-Pay and HMO enrollees.
-            </p>
+                <ArrowRight className="w-4 h-4 text-[#0082cd] shrink-0" />
 
-            {/* Quick Metrics Bar */}
-            <div className="pt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto text-left">
-              <div className="p-3 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs">
-                <p className="text-lg sm:text-xl font-black text-[#0082cd]">25+</p>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Clinical Units</p>
-              </div>
-              <div className="p-3 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs">
-                <p className="text-lg sm:text-xl font-black text-emerald-600">0 Mins</p>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Queue Bypass</p>
-              </div>
-              <div className="p-3 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs">
-                <p className="text-lg sm:text-xl font-black text-[#006bac]">8+ HMOs</p>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Direct Coverage</p>
-              </div>
-              <div className="p-3 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs">
-                <p className="text-lg sm:text-xl font-black text-amber-600">24/7</p>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Emergency Care</p>
-              </div>
+                <Link
+                  href="/doctors"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-sky-50 text-slate-700 hover:text-[#0082cd] border border-slate-200 hover:border-sky-300 shadow-2xs transition-all group"
+                >
+                  <Calendar className="w-4 h-4 text-[#006bac] group-hover:scale-110 transition-transform" />
+                  <span>View Clinic Schedule</span>
+                </Link>
+
+                <ArrowRight className="w-4 h-4 text-[#0082cd] shrink-0" />
+
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#0082cd] to-[#006bac] text-white font-extrabold shadow-xs">
+                  <Sparkles className="w-4 h-4 text-white" />
+                  <span>Book Your Appointment</span>
+                </span>
+              </h1>
             </div>
+
           </div>
         </div>
       </section>
@@ -164,101 +168,6 @@ function BookingContent() {
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                 Your consultation reference ticket is generated instantly with shift instructions, printable slip, and WhatsApp share link for fast-track front-desk check-in.
               </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- TRUST & PATIENT PRIVILEGES ---------------- */}
-      <section className="bg-slate-900 text-white py-14 sm:py-20 border-t border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 text-xs font-bold">
-                <Sparkles className="w-3.5 h-3.5" /> High Standard Clinical Experience
-              </div>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight">
-                Designed for Patient Comfort, Privacy, and Timely Care.
-              </h2>
-              <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
-                At Isalu Hospitals, our digital booking system coordinates directly with our Electronic Health Record (EHR) and nursing triage, ensuring that consulting doctors have real-time visibility into incoming patients without overcrowding.
-              </p>
-
-              <div className="space-y-3 pt-2">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-bold text-sm text-white">Controlled Clinic Capacity</h4>
-                    <p className="text-xs text-slate-400">Strict caps per doctor per shift avoid waiting fatigue and guarantee thorough consultation time.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-bold text-sm text-white">Full HMO Support & Pre-Authorization</h4>
-                    <p className="text-xs text-slate-400">Dedicated desk officers expedite primary and secondary health provider approvals.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-bold text-sm text-white">24/7 Reschedule Flexibility</h4>
-                    <p className="text-xs text-slate-400">Easily swap your appointment date anytime without calling or visiting in person.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Action Box */}
-            <div className="p-6 sm:p-8 rounded-3xl bg-slate-800/80 border border-slate-700/80 space-y-6">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-700">
-                <div>
-                  <h3 className="text-base font-black text-white">Already Have an Appointment?</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Track ticket details or adjust clinic date in seconds.</p>
-                </div>
-                <Calendar className="w-8 h-8 text-sky-400" />
-              </div>
-
-              <div className="space-y-3">
-                <Link
-                  href="/check-status"
-                  className="w-full flex items-center justify-between px-5 py-3.5 rounded-2xl bg-gradient-to-r from-[#0082cd] to-[#006bac] hover:from-[#0073b6] hover:to-[#005a91] text-white font-bold text-xs shadow-md transition-all active:scale-98"
-                >
-                  <span className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" /> Track Existing Reference Code
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-
-                <Link
-                  href="/doctors"
-                  className="w-full flex items-center justify-between px-5 py-3.5 rounded-2xl bg-slate-700/70 hover:bg-slate-700 border border-slate-600 text-slate-200 font-bold text-xs transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Stethoscope className="w-4 h-4" /> Browse Specialist Consultants Directory
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-
-                <Link
-                  href="/hmo"
-                  className="w-full flex items-center justify-between px-5 py-3.5 rounded-2xl bg-slate-700/70 hover:bg-slate-700 border border-slate-600 text-slate-200 font-bold text-xs transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4" /> Check Accredited HMO Providers
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-
-              <div className="pt-3 border-t border-slate-700/80 flex items-center justify-between text-[11px] text-slate-400">
-                <span className="flex items-center gap-1.5 text-sky-400">
-                  <PhoneCall className="w-3.5 h-3.5" /> Emergency: +234 800 47258 2273
-                </span>
-                <span>Open 24/7 Daily</span>
-              </div>
             </div>
           </div>
         </div>

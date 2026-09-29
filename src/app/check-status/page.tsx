@@ -1,7 +1,8 @@
 // src/app/check-status/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { lookupBooking } from '@/lib/api';
 import { Booking, formatDoctorName, getDoctorInitialName } from '@/lib/types';
 import { 
@@ -19,10 +20,12 @@ import {
   CalendarClock,
   Mail,
   Copy,
-  Check
+  Check,
+  FileDown
 } from 'lucide-react';
 import Link from 'next/link';
 import { printElement } from '@/lib/printUtils';
+import { downloadTicketPdf, shareTicketToWhatsApp } from '@/lib/pdfUtils';
 import RescheduleModal from '@/components/RescheduleModal';
 import IsaluLogo from '@/components/IsaluLogo';
 
@@ -35,7 +38,10 @@ function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
   );
 }
 
-export default function CheckStatusPage() {
+function CheckStatusContent() {
+  const searchParams = useSearchParams();
+  const urlRef = searchParams.get('ref');
+  const urlDownload = searchParams.get('download');
   const [refCode, setRefCode] = useState('');
   const [phone, setPhone] = useState('');
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -43,6 +49,66 @@ export default function CheckStatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [copiedTicket, setCopiedTicket] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfMessage, setPdfMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (urlRef && !booking && !loading) {
+      const code = urlRef.trim().toUpperCase();
+      setRefCode(code);
+      setLoading(true);
+      setError(null);
+      lookupBooking(code)
+        .then((result) => {
+          setBooking(result);
+          if (urlDownload === 'pdf') {
+            downloadTicketPdf(result, `Isalu-Appointment-${result.reference_code}.pdf`);
+            setPdfMessage('Official PDF ticket voucher downloaded!');
+            setTimeout(() => setPdfMessage(null), 5000);
+          }
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : 'Could not find appointment with this code.');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [urlRef, urlDownload]);
+
+  const handleWhatsAppPdf = async () => {
+    if (!booking) return;
+    try {
+      setPdfLoading(true);
+      const res = await shareTicketToWhatsApp(
+        booking,
+        'printable-ticket',
+        () => getDoctorInitialName(booking.doctor || booking.doctor_name)
+      );
+      if (res.downloaded) {
+        setPdfMessage('Official PDF slip downloaded! In WhatsApp, click 📎 Attach ➔ Document to send it, or send the direct link.');
+        setTimeout(() => setPdfMessage(null), 8000);
+      }
+    } catch (err: unknown) {
+      console.error(err);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!booking) return;
+    try {
+      setPdfLoading(true);
+      await downloadTicketPdf(booking, `Isalu-Appointment-${booking.reference_code}.pdf`);
+      setPdfMessage('Official PDF ticket voucher downloaded successfully!');
+      setTimeout(() => setPdfMessage(null), 5000);
+    } catch (err: unknown) {
+      console.error(err);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +207,13 @@ export default function CheckStatusPage() {
       </div>
 
       {/* Result Display */}
+      {pdfMessage && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2.5 animate-slide-up shadow-xs">
+          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{pdfMessage}</span>
+        </div>
+      )}
+
       {booking && (
         <div className="space-y-6 animate-scale-pop">
           <div id="printable-ticket" className="bg-white rounded-3xl border border-slate-200/90 shadow-lg p-6 sm:p-8 space-y-6">
@@ -149,7 +222,7 @@ export default function CheckStatusPage() {
               <div className="space-y-1">
                 <IsaluLogo variant="full" size="md" />
                 <p className="text-[11px] text-slate-500 font-medium">
-                  No. 46, Ijaiye Road, Ogba, Ikeja, Lagos • Emergency: +234 800 47258 2273
+                  No. 46, Ijaiye Road, Ogba, Ikeja, Lagos • Emergency: +234 706 3911 672
                 </p>
               </div>
               <div className="flex flex-col items-start sm:items-end gap-1.5">
@@ -250,20 +323,35 @@ export default function CheckStatusPage() {
                     <span>Reschedule Consultation</span>
                   </button>
                 ) : (
-                  <span>Need changes or support? Contact +234 800 47258 2273</span>
+                  <span>Need changes or support? Emergency Dispatch: +234 706 3911 672</span>
                 )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent(`*ISALU HOSPITALS - APPOINTMENT TICKET*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🎟️ *Ticket Reference:* ${booking.reference_code}\n👤 *Patient:* ${booking.patient_name}\n🏥 *Clinic:* ${booking.doctor_specialty || booking.department?.name || 'Specialist Consultation'}\n👨‍⚕️ *Specialist:* ${getDoctorInitialName(booking.doctor || booking.doctor_name)}\n📅 *Date & Time:* ${booking.date || booking.appointment_date} at ${booking.time || booking.appointment_time}\n💳 *Billing:* ${booking.payment_type}${booking.hmo_policy_code ? ` (Policy ID: ${booking.hmo_policy_code})` : ''}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📍 Address: No. 46, Ijaiye Road, Ogba, Ikeja, Lagos\n🔗 Track: ${typeof window !== 'undefined' ? window.location.origin : ''}/check-status?ref=${encodeURIComponent(booking.reference_code)}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all active:scale-95 cursor-pointer shadow-xs"
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={pdfLoading}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-sky-50 hover:bg-sky-100 text-[#006bac] font-bold border border-sky-200 transition-colors cursor-pointer shadow-2xs"
+                  title="Download official PDF ticket voucher"
+                >
+                  <FileDown className="w-3.5 h-3.5 text-[#0082cd]" />
+                  <span>PDF Slip</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleWhatsAppPdf}
+                  disabled={pdfLoading}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-75 text-white font-bold transition-all active:scale-95 cursor-pointer shadow-xs"
+                  title="Share official PDF ticket via WhatsApp"
                 >
                   <WhatsAppIcon className="w-3.5 h-3.5" />
                   <span>WhatsApp</span>
-                </a>
+                  <span className="text-[9px] uppercase font-black tracking-wider bg-white/25 px-1 py-0.5 rounded text-white shadow-2xs">
+                    PDF
+                  </span>
+                </button>
 
                 <button
                   type="button"
@@ -304,5 +392,13 @@ export default function CheckStatusPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CheckStatusPage() {
+  return (
+    <Suspense fallback={<div className="max-w-3xl mx-auto px-4 py-16 text-center text-slate-500 font-medium animate-pulse">Loading appointment verification portal...</div>}>
+      <CheckStatusContent />
+    </Suspense>
   );
 }

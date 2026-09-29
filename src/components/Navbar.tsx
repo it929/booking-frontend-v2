@@ -49,7 +49,7 @@ export default function Navbar() {
   }
 
   const navLinks = [
-    { name: 'Book Appointment', href: '/' },
+    { name: 'Book Your Appointment', href: '/' },
     { name: 'Available HMOs', href: '/hmo' },
     { name: 'Doctors & Specialists', href: '/doctors' },
     { name: 'Check Ticket Status', href: '/check-status' },
@@ -71,7 +71,7 @@ export default function Navbar() {
             <span className="text-slate-700">|</span>
             <span className="flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
               <PhoneCall className="w-3 h-3 text-[#38bdf8]" />
-              Emergency Dispatch: <a href="tel:+234800472582273" className="font-bold text-[#38bdf8] hover:underline">+234 706 3911 672</a>
+              Emergency Dispatch: <a href="tel:+2347063911672" className="font-bold text-[#38bdf8] hover:underline">+234 706 3911 672</a>
             </span>
           </div>
           <div className="flex items-center gap-4 text-slate-400">
